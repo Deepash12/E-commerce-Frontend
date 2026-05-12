@@ -60,7 +60,7 @@ const ReviewCard: React.FC<Props> = ({ review, onEdit, onDelete }) => {
   // FIX: backend sends flat `userName` string — NOT a nested `user` object
   // OLD (crashes): review.user.username
   // NEW (correct):  review.userName
-  const displayName = review.userName ?? "Anonymous";
+  const displayName = review.user.username ?? "Anonymous";
 
   return (
     <div className="flex gap-4 border-b border-obsidian-800 py-5 last:border-0 group">

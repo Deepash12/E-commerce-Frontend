@@ -132,11 +132,34 @@ export interface OrderDetails {
   coupon?: Coupon;
 }
 
+// export interface Order {
+//   data: any;
+//   address?: Address;
+//   amount: number;
+// }
+
 export interface Order {
-  data: any;
+  id: number;
+  orderStatus: OrderStatus;
+  items?: OrderItem[];
+
+  totalAmount?: number;
+  grandTotal?: number;
+
+  createdAt?: string;
+
+  paymentStatus?: string;
+  paymentMethod?: string;
+
   address?: Address;
-  amount: number;
+
+  discountAmount?: number;
+
+  estimatedDeliveryDate?: string;
+
+  coupon?: Coupon;
 }
+
 
 // ─── Payment ─────────────────────────────────────────────────────────────────
 export type PaymentMethod = 'CARD' | 'UPI' | 'NET_BANKING' | 'COD';

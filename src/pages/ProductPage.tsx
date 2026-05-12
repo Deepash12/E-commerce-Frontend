@@ -545,7 +545,6 @@ const ProductsPage: React.FC = () => {
                   background: "rgba(201,168,76,0.1)",
                   borderLeft: "1px solid rgba(255,255,255,0.06)",
                   color: "#C9A84C", border: "none",
-                  borderLeft: "1px solid rgba(255,255,255,0.06)",
                   cursor: "pointer",
                   fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em",
                   transition: "background 0.2s", flexShrink: 0,
