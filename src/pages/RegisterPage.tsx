@@ -4,9 +4,9 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Eye, EyeOff } from 'lucide-react';
-import { authAPI } from '@/api/services';
+import { authAPI } from '../api/service';
 import { useAuth } from '@/context/AuthContext';
-import { Field } from '@/components/ui';
+import { Field } from '../components/ui';
 import toast from 'react-hot-toast';
 import type { RegisterRequest } from '@/types';
 

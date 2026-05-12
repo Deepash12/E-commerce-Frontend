@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { productAPI } from "@/api/services";
+import { productAPI } from "../../../api/service";
 interface Category {
   ID: number;
   name: string;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle, MapPin, Plus } from "lucide-react";
-import { addressAPI, orderAPI, couponAPI } from "../api/services";
+import { addressAPI, orderAPI, couponAPI } from "../api/service";
 import { useCart } from "../context/CartContext";
 import { LoadingPage } from "../components/ui";
 import AddressForm from "../components/address/AddressForm";

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI } from '../api/services';
+import { authAPI } from '../api/service';
 import type { User, LoginRequest } from '../types';
 import { jwtDecode } from "jwt-decode";
 

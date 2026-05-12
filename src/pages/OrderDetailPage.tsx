@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Review } from "@/types";
 import ReviewCard from "@/components/review/ReviewCard";
-import { reviewAPI } from "@/api/services";
+import { reviewAPI } from "../api/service";
 
 const BASE_URL = "http://localhost:8080"; // 🔥 IMPORTANT FIX
 

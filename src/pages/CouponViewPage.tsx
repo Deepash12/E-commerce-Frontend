@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Tag, Clock, ShoppingBag } from "lucide-react";
-import { couponAPI } from "./../api/services";
+import { couponAPI } from "@/api/service";
 import toast from "react-hot-toast";
 
 interface Coupon {

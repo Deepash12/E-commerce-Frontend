@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { productAPI } from "./../../../api/services";
+import { productAPI } from "../../../api/service";
 import { Pagination } from "antd";
 
 interface Product {

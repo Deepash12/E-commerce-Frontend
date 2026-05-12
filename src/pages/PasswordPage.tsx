@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
-import { authAPI } from './../api/services';
-import { Field } from './../components/ui';
+import { authAPI } from '../api/service';
+import { Field } from '../components/ui';
 import toast from 'react-hot-toast';
 
 

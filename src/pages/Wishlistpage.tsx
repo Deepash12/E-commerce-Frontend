@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Heart, ShoppingBag, Trash2, Zap, Star } from 'lucide-react';
-import { wishlistAPI } from '../api/services';
+import { wishlistAPI } from '../api/service';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { LoadingPage, EmptyState } from '../components/ui';

@@ -10,10 +10,10 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import { productAPI, wishlistAPI } from "@/api/services";
+import { productAPI, wishlistAPI } from "../api/service";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
-import { Pagination } from "@/components/ui";
+import { Pagination } from "../components/ui";
 import { formatPrice } from "@/utils";
 import type { Product, ProductFilters } from "@/types";
 import toast from "react-hot-toast";

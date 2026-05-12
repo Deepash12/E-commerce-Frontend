@@ -12,7 +12,7 @@ import {
   XCircle,
   Archive,
 } from "lucide-react";
-import { orderAPI } from "../api/services";
+import { orderAPI } from "../api/service";
 import { LoadingPage, EmptyState, StatusBadge } from "../components/ui";
 import { formatPrice, formatDate } from "../utils";
 import type { Order } from "../types";

@@ -6,7 +6,7 @@ import React, {
   ReactNode,
   useCallback,
 } from "react";
-import { cartAPI } from "../api/services";
+import { cartAPI } from "../api/service";
 import type { CartItem } from "../types";
 import { useAuth } from "./AuthContext";
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, ShoppingBag, Heart, Package, Edit, Trash } from 'lucide-react';
-import { productAPI, reviewAPI, wishlistAPI } from '@/api/services';
+import { productAPI, reviewAPI, wishlistAPI } from '../api/service';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { LoadingPage } from '@/components/ui';
+import { LoadingPage } from '../components/ui';
 import { formatPrice, cn } from '@/utils';
 import type { Product, RatingSummary, Review } from '@/types';
 import toast from 'react-hot-toast';
