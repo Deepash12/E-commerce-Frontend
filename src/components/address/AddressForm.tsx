@@ -2,7 +2,7 @@ import React, { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { addressAPI } from './../../api/services';
+import { addressAPI } from './../../api/service';
 import type { Address, AddressRequest } from './../../types';
 import { Field } from './../../components/ui';
 import toast from 'react-hot-toast';
