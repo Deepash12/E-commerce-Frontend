@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Tag, Copy, Check, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { couponAPI } from "../api/services";
-import { LoadingPage, EmptyState } from "../components/ui";
+import { couponAPI } from "@/api/service";
+
+import{ EmptyState, LoadingPage } from "@/components/ui";
+
+
 import { formatDate } from "../utils";
 import type { Coupon } from "../types";
 import toast from "react-hot-toast";
@@ -59,68 +62,6 @@ const CouponsPage: React.FC = () => {
               const code = c.couponCode ?? c.code ?? "";
 
               return (
-                //                 <div
-                //                   key={c.id}
-                //                   onClick={() => navigate(`/profile/coupons/${c.id}`)}
-                //                   className="card cursor-pointer border-obsidian-800 p-5 flex items-center gap-5 hover:border-obsidian-700 transition-colors"
-                //                 >
-                //                   {/* Icon */}
-                //                   <div className="w-12 h-12 bg-gold-400/10 border border-gold-400/20 rounded-sm flex items-center justify-center flex-shrink-0">
-                //                     <Tag size={20} className="text-gold-400" />
-                //                   </div>
-
-                //                   {/* Coupon Info */}
-                //                   <div className="flex-1 min-w-0">
-                //                     <div className="flex items-center gap-2.5 mb-0.5">
-                //                       <span className="font-mono text-lg font-medium text-obsidian-100">
-                //                         {code}
-                //                       </span>
-
-                //                       {c.discountPercentage && (
-                //                         <span className="badge badge-gold">
-                //                           {c.discountPercentage}% OFF
-                //                         </span>
-                //                       )}
-                //                     </div>
-
-
-                // {/* text-obsidian-500 text-xs truncate */}
-                //                     {c.description && (
-                //                       <p className=" flex items-center gap-2">
-                //                         {c.description}
-                //                       </p>
-                //                     )}
-
-                //                     <div className="flex items-center gap-2">
-                //                       <ShoppingBag size={12} />
-                //                       Minimum Order: ₹{c.minOrderAmount}
-                //                     </div>
-
-                //                     {c.expiryDate && (
-                //                       <p className="text-obsidian-600 text-xs mt-0.5">
-                //                         Expires {formatDate(c.expiryDate)}
-                //                       </p>
-                //                     )}
-                //                   </div>
-
-                //                   {/* Copy Button */}
-                //                   <button
-                //                     className="btn btn-outline btn-sm gap-1.5 flex-shrink-0"
-                //                     onClick={(e) => {
-                //                       e.stopPropagation();
-                //                       handleCopy(code);
-                //                     }}
-                //                   >
-                //                     {copied === code ? (
-                //                       <Check size={12} className="text-green-400" />
-                //                     ) : (
-                //                       <Copy size={12} />
-                //                     )}
-
-                //                     {copied === code ? "Copied" : "Copy"}
-                //                   </button>
-                //                 </div>
-
 
                 <div
                   key={c.id}

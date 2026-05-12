@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { couponAPI } from "./../../../api/services";
+import { couponAPI } from "@/api/service";
+// import { couponAPI } from "./../../../api/services";
 import apiClient from "@/api/client";
 
 interface Coupon {

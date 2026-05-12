@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, MapPin, Trash2, Pencil } from 'lucide-react';
-import { addressAPI } from '../api/services';
+import { addressAPI } from '../api/service';
 import { useNavigate } from 'react-router-dom';
 import { LoadingPage, EmptyState } from '../components/ui';
 import AddressForm from '../components/address/AddressForm';

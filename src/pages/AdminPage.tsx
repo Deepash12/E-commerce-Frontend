@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
-import { productAPI } from '../api/services';
+import { productAPI } from '../api/service';
 import { LoadingPage, Modal, Pagination, Spinner, Field } from '../components/ui';
 import { formatPrice, cn } from '../utils';
 import type { Product } from '../types';

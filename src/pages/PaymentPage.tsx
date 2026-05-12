@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CreditCard, Smartphone, Building2, Banknote, Clock, CheckCircle, ShieldCheck, ArrowLeft } from 'lucide-react';
-import { paymentAPI } from '../api/services';
+import { paymentAPI } from '../api/service';
 import { useCart } from '../context/CartContext';
 import type { PaymentMethod, Payment } from '../types';
 import toast from 'react-hot-toast';

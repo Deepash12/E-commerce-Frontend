@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { reviewAPI } from "@/api/services";
+import { reviewAPI } from "@/api/service";
 import type { Review, RatingSummary } from "@/types";
 import { ThumbsUp, ThumbsDown, Star, MessageSquare } from "lucide-react";
 import toast from "react-hot-toast";

@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { Field } from '@/components/ui';
+import { Field } from '../components/ui';
 import toast from 'react-hot-toast';
 import type { LoginRequest } from '@/types';
 

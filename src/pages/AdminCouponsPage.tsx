@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { couponAPI } from "../api/services";
+import { couponAPI } from "../api/service";
 import toast from "react-hot-toast";
 
 const AdminCouponsPage: React.FC = () => {

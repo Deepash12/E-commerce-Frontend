@@ -8,10 +8,14 @@ import { CartProvider } from "./context/CartContext";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/ui/Footer";
 
+
 import { ProtectedRoute, AdminRoute } from "./components/auth/ProtectedRoute";
+
+
+
 import { LoadingPage } from "./components/ui";
 
-import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPage";
 
 // Admin Product Pages
 import ProductListPage from "./pages/admin/products/ProductListPage";
@@ -27,20 +31,22 @@ import ProfileInformation from "./pages/ProfileInformation";
 import EditProfile from "./pages/EditProfile";
 import AboutPage from "./components/ui/AboutPage";
 import CouponViewPage from "./pages/CouponViewPage";
-import EditCouponPage from "./pages/admin/coupons/EditCouponPage";
-import ViewCouponPage from "./pages/admin/coupons/ViewCouponsPage";
+import EditCouponPage from "./pages/admin/coupons/EditCouponsPage";
+
+import ViewCouponPage from "./pages/admin/coupons/viewCouponsPage";
+
+
 import { useAuth } from "./context/AuthContext";
-import ProductReviewsPage from "./pages/ProductReviewsViewPage";
+import ProductReviewsPage from "./pages/ProductReviewViewPage";
+
 import MyReviewsPage from "./pages/MyReviewsPage";
-// import EditAddressPage from "./pages/EditAddressPage";
-
-
 
 // Lazy Pages
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
-const ProductsPage = lazy(() => import("./pages/ProductsPage"));
+const ProductsPage = lazy(()=> import("./pages/ProductPage"));
+// const ProductsPage = lazy(() => import("./pages/ProductsPage"));
 const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
@@ -48,7 +54,7 @@ const PaymentPage = lazy(() => import("./pages/PaymentPage"));
 const OrdersPage = lazy(() => import("./pages/OrdersPage"));
 const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
 const AddressesPage = lazy(() => import("./pages/AddressesPage"));
-const WishlistPage = lazy(() => import("./pages/WishlistPage"));
+const WishlistPage = lazy(() => import("./pages/Wishlistpage"));
 
 
 function AppRoutes() {
