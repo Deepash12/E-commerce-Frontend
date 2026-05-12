@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-obsidian-800;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-obsidian-950 text-obsidian-100 font-body antialiased;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-obsidian-950;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-obsidian-700 rounded-full;
+  }
+
+  ::selection {
+    @apply bg-gold-400/20 text-gold-300;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-body font-medium
+           text-xs tracking-widest uppercase px-5 py-2.5 rounded-sm border
+           transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
+           whitespace-nowrap;
+  }
+
+  .btn-primary {
+    @apply bg-gold-400 text-obsidian-950 border-gold-400
+           hover:bg-gold-300 hover:border-gold-300 active:scale-[0.98];
+  }
+
+  .btn-outline {
+    @apply bg-transparent text-obsidian-100 border-obsidian-700
+           hover:border-gold-400 hover:text-gold-400 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-obsidian-400 border-transparent
+           hover:text-obsidian-100 hover:bg-obsidian-800/50;
+  }
+
+  .btn-danger {
+    @apply bg-transparent text-red-400 border-red-800
+           hover:bg-red-900/30 hover:border-red-600;
+  }
+
+  .btn-sm {
+    @apply px-3.5 py-1.5 text-[10px];
+  }
+
+  .btn-lg {
+    @apply px-8 py-3.5 text-sm;
+  }
+
+  .input {
+    @apply w-full bg-obsidian-900 border border-obsidian-700 text-obsidian-100
+           px-3.5 py-2.5 rounded-sm text-sm font-body placeholder-obsidian-600
+           focus:outline-none focus:border-gold-400 focus:ring-1 focus:ring-gold-400/20
+           transition-all duration-200;
+  }
+
+  .label {
+    @apply block text-[10px] font-medium tracking-widest uppercase text-obsidian-500 mb-1.5;
+  }
+
+  .card {
+    @apply bg-obsidian-900 border border-obsidian-800 rounded-sm;
+  }
+
+  .page-wrapper {
+    @apply min-h-screen pt-[68px];
+  }
+
+  .container-wide {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .page-title {
+    @apply font-display font-medium text-4xl md:text-5xl text-obsidian-50 tracking-tight;
+  }
+
+  .section-title {
+    @apply font-display font-medium text-2xl text-obsidian-100 tracking-tight;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px]
+           font-medium tracking-wider uppercase;
+  }
+
+  .badge-gold {
+    @apply bg-gold-400/10 text-gold-400 border border-gold-400/20;
+  }
+
+  .badge-green {
+    @apply bg-emerald-400/10 text-emerald-400 border border-emerald-400/20;
+  }
+
+  .badge-red {
+    @apply bg-red-400/10 text-red-400 border border-red-400/20;
+  }
+
+  .badge-gray {
+    @apply bg-obsidian-800 text-obsidian-400 border border-obsidian-700;
+  }
+
+  .badge-blue {
+    @apply bg-blue-400/10 text-blue-400 border border-blue-400/20;
+  }
+
+  .divider {
+    @apply border-t border-obsidian-800 my-5;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-gold-300 to-gold-500 bg-clip-text text-transparent;
+  }
+
+  .glass {
+    @apply bg-obsidian-900/80 backdrop-blur-md;
+  }
+
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+}
