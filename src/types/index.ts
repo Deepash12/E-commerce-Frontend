@@ -139,6 +139,7 @@ export interface OrderDetails {
 // }
 
 export interface Order {
+  data: any;
   id: number;
   orderStatus: OrderStatus;
   items?: OrderItem[];
