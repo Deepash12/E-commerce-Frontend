@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/utils";
 import toast from "react-hot-toast";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 interface ProductCardProps {
   product: any;
@@ -27,7 +28,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const discountPercent = hasDiscount ? Math.round((discountAmount / originalPrice) * 100) : 0;
   const inStock         = (product.stockQuantity ?? 1) > 0;
   const imageUrl        = product.productImageUrl
-    ? `http://localhost:8080${product.productImageUrl}`
+    ? `${BASE_URL}${product.productImageUrl}`
     : product.image ?? null;
 
   const handleAdd = async (e: React.MouseEvent) => {

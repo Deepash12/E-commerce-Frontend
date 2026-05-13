@@ -17,6 +17,7 @@ import { LoadingPage, EmptyState, StatusBadge } from "../components/ui";
 import { formatPrice, formatDate } from "../utils";
 import type { Order } from "../types";
 import toast from "react-hot-toast";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 // ─────────────────────────────────────────
 // STATUS CONFIG
@@ -163,7 +164,7 @@ const OrderCard = ({
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-obsidian-900 shrink-0">
             {firstItem?.productImageUrl ? (
               <img
-                src={`http://localhost:8080${firstItem.productImageUrl}`}
+                src={`${BASE_URL}${firstItem.productImageUrl}`}
                 alt={firstItem?.productName}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -255,7 +256,7 @@ const OrderCard = ({
                 >
                   <div className="flex items-center gap-3">
                     <img
-                      src={`http://localhost:8080${item.productImageUrl}`}
+                      src={`${BASE_URL}${item.productImageUrl}`}
                       className="w-10 h-10 rounded-lg object-cover bg-obsidian-900"
                       alt={item.productName}
                       onError={(e) => {

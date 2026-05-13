@@ -3,7 +3,7 @@ import api from "../api/client";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const EditProfile = () => {
   const navigate = useNavigate();

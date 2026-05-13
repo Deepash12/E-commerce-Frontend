@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { productAPI } from "../../../api/service";
 import { Pagination } from "antd";
-
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 interface Product {
   id: number;
   name: string;
@@ -72,7 +72,7 @@ const ProductListPage: React.FC = () => {
       const token = localStorage.getItem("token");
 
       await fetch(
-        `http://localhost:8080/api/products/enable-disable/${id}?flag=${!currentFlag}`,
+        `${BASE_URL}/api/products/enable-disable/${id}?flag=${!currentFlag}`,
         {
           method: "PUT",
           headers: {
@@ -146,7 +146,7 @@ const ProductListPage: React.FC = () => {
                       <td className="px-6 py-4">
                         {p.productImageUrl ? (
                           <img
-                            src={`http://localhost:8080${p.productImageUrl}`}
+                            src={`${BASE_URL}${p.productImageUrl}`}
                             alt={p.name}
                             className="w-14 h-14 object-cover rounded"
                           />

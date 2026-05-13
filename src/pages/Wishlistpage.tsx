@@ -9,6 +9,7 @@ import { LoadingPage, EmptyState } from '../components/ui';
 import { formatPrice } from '../utils';
 import type { Product } from '../types';
 import toast from 'react-hot-toast';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 /* ── Individual Wishlist Card (matches product card style) ── */
 const WishlistCard: React.FC<{
@@ -29,7 +30,7 @@ const WishlistCard: React.FC<{
   const inStock = (product.stockQuantity ?? 1) > 0;
 
   const imageUrl = product.productImageUrl
-    ? `http://localhost:8080${product.productImageUrl}`
+    ? `${BASE_URL}${product.productImageUrl}`
     : null;
 
   const handleAdd = async (e: React.MouseEvent) => {

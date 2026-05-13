@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { productAPI } from "../../../api/service";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 interface Category {
   ID: number;
   name: string;
@@ -74,7 +75,7 @@ const ViewProductPage: React.FC = () => {
           <div className="flex justify-center">
 
             <img
-              src={`http://localhost:8080${Product.productImageUrl}`}
+              src={`${BASE_URL}${Product.productImageUrl}`}
 
               alt={Product.name}
               className="rounded-lg border border-gray-700 w-80 object-cover"

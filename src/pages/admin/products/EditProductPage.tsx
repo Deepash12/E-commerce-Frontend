@@ -20,7 +20,8 @@ const EditProductPage: React.FC = () => {
   const [image, setImage] = useState<File | null>(null);
   const [existingImage, setExistingImage] = useState<string | null>(null);
 
-  const BASE_URL = "http://localhost:8080";
+
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
   const token = localStorage.getItem("token");
 
   /* ---------------- FETCH CATEGORIES ---------------- */

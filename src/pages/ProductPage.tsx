@@ -17,6 +17,7 @@ import { Pagination } from "../components/ui";
 import { formatPrice } from "@/utils";
 import type { Product, ProductFilters } from "@/types";
 import toast from "react-hot-toast";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 /* ─────────────────────── Animated wrapper ─────────────────────────── */
 const FadeIn: React.FC<{ index: number; children: React.ReactNode }> = ({ index, children }) => (
@@ -103,7 +104,7 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         <div style={{ position: "relative", height: 230, background: "#fff", overflow: "hidden" }}>
           {product.productImageUrl ? (
             <img
-              src={`http://localhost:8080${product.productImageUrl}`}
+              src={`${BASE_URL}${product.productImageUrl}`}
               alt={product.name}
               style={{
                 width: "100%",

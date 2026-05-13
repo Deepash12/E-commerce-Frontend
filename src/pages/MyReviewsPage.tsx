@@ -3,7 +3,7 @@ import { Review } from "@/types";
 import ReviewCard from "@/components/review/ReviewCard";
 import { reviewAPI } from "@/api/service";
 
-const BASE_URL = "http://localhost:8080"; // 🔥 IMPORTANT FIX
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const MyReviews: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -23,7 +23,7 @@ const MyReviews: React.FC = () => {
 
         // 🔥 FIXED IMAGE PATH
         productImage: item.product?.productImageUrl
-          ? `http://localhost:8080${item.product.productImageUrl}`
+          ? `${BASE_URL}${item.product.productImageUrl}`
           : "/placeholder.png",
 
         productName: item.product?.description || "Product Name",

@@ -5,7 +5,7 @@ import { useCart } from '../context/CartContext';
 import { LoadingPage, EmptyState } from '../components/ui';
 import { formatPrice } from '../utils';
 
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const CartPage: React.FC = () => {
 

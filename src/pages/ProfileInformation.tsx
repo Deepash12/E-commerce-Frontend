@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "./../api/client";
 import { useNavigate } from "react-router-dom";
 import { User, Mail, Phone, AtSign, Pencil, X, ChevronRight } from "lucide-react";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const FIELDS = [
   { key: "firstName", label: "First Name",  Icon: User    },
@@ -171,7 +172,7 @@ const ProfileInformation = () => {
                   }} />
                 ) : avatarValid ? (
                   <img
-                    src={`http://localhost:8080${profile.avatarUrl}`}
+                    src={`${BASE_URL}${profile.avatarUrl}`}
                     alt="Profile"
                     onClick={() => setShowAvatar(true)}
                     style={{
@@ -355,7 +356,7 @@ const ProfileInformation = () => {
             style={{ position: "relative", animation: "modalIn .28s ease" }}
           >
             <img
-              src={`http://localhost:8080${profile.avatarUrl}`}
+              src={`${BASE_URL}${profile.avatarUrl}`}
               alt="Avatar large"
               style={{
                 maxHeight: "80vh", maxWidth: "80vw",

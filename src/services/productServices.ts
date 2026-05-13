@@ -1,7 +1,7 @@
 import axios from "axios"
 import { Product } from "../types/Product"
-
-const API = "http://localhost:8080/api/admin/products"
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API = `${BASE_URL}/api/admin/products`
 
 export const getProducts = () => {
   return axios.get<Product[]>(API)

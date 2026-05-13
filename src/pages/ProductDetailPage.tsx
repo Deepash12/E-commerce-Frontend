@@ -8,6 +8,7 @@ import { LoadingPage } from '../components/ui';
 import { formatPrice, cn } from '@/utils';
 import type { Product, RatingSummary, Review } from '@/types';
 import toast from 'react-hot-toast';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const ProductDetailPage: React.FC = () => {
 
@@ -211,7 +212,7 @@ const ProductDetailPage: React.FC = () => {
 
             {product.productImageUrl ? (
               <img
-                src={`http://localhost:8080${product.productImageUrl}`}
+                src={`${BASE_URL}${product.productImageUrl}`}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
