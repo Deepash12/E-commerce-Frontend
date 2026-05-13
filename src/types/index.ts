@@ -62,8 +62,8 @@ export interface PageResponse<T> {
 }
 
 // ─── Cart ────────────────────────────────────────────────────────────────────
-export interface CartItem {
-  productImageUrl: any;
+export interface CartItem{
+  productImageUrl: string| null;
   productId: number;
   productName: string;
   finalPrice: number;
