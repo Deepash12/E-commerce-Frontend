@@ -1,521 +1,887 @@
-
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Heart, ShoppingBag, Trash2, Zap, Star } from 'lucide-react';
-import { wishlistAPI } from './../../../api/service';
-import { useCart } from '../../../context/CartContext';
-import { useAuth } from '../../../context/AuthContext';
-import { LoadingPage, EmptyState } from '../../../components/ui';
-import { formatPrice } from '../../../utils';
-import type { Product } from '../../../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Plus, Trash2, Tag, Percent, IndianRupee,
+  CalendarDays, ShoppingCart, ToggleLeft, ToggleRight,
+  Copy, Check, Search, AlertCircle, FileText,
+  Users, Globe, TrendingDown, Info,
+} from 'lucide-react';
+import { couponAPI } from './../../../api/service';
+import { LoadingPage, Modal, Pagination, Spinner, Field, EmptyState } from './../../../components/ui';
+import { cn } from './../../../utils';
 import toast from 'react-hot-toast';
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
-/* ── Individual Wishlist Card (matches product card style) ── */
-const WishlistCard: React.FC<{
-  product: Product;
-  onRemove: (id: number) => void;
-}> = ({ product, onRemove }) => {
-  const { addToCart } = useCart();
-  const navigate = useNavigate();
+// ─────────────────────────────────────────────────────────────────────────────
+//  TYPES  (add these to your src/types/index.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+type CouponType = 'PERCENTAGE' | 'FLAT';
 
-  const [adding, setAdding] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const [removing, setRemoving] = useState(false);
+interface Coupon {
+  couponId:             number;       // adjust to your response field name
+  couponCode:           string;
+  couponType:           CouponType;
+  description:          string;
+  minOrderAmount:       number;
+  discountAmount:       number;
+  maximumDiscountAmount:number;
+  expiryAt:             string;       // ISO datetime string
+  validFrom:             string;       // ISO datetime string
+  isActive:             boolean;
+  perUserLimit:         number;
+  globalUsageLimit:     number;
+}
 
-  const discountAmount = product.discountPrice ?? 0;
-  const hasDiscount = discountAmount > 0;
-  const finalPrice = hasDiscount ? product.price - discountAmount : product.price;
-  const discountPercent = hasDiscount ? Math.round((discountAmount / product.price) * 100) : 0;
-  const inStock = (product.stockQuantity ?? 1) > 0;
+// ─── Matches AddCouponRequestDTO exactly ─────────────────────────────────────
+interface CouponFormData {
+  couponCode:            string;
+  couponType:            CouponType;
+  description:           string;
+  minOrderAmount:        string;
+  discountAmount:        string;
+  maximumDiscountAmount: string;
+  expiryAt:              string;   // "yyyy-MM-ddTHH:mm"
+  validFrom:             string;   // "yyyy-MM-ddTHH:mm"
+  isActive:              boolean;
+  perUserLimit:          string;
+  globalUsageLimit:      string;
+}
 
-  const imageUrl = product.productImageUrl
-    ? `${BASE_URL}${product.productImageUrl}`
-    : null;
+const defaultForm: CouponFormData = {
+  couponCode:            '',
+  couponType:            'PERCENTAGE',
+  description:           '',
+  minOrderAmount:        '',
+  discountAmount:        '',
+  maximumDiscountAmount: '',
+  expiryAt:              '',
+  validFrom:             '',
+  isActive:              true,
+  perUserLimit:          '',
+  globalUsageLimit:      '',
+};
 
-  const handleAdd = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setAdding(true);
-    try {
-      await addToCart(product.id, 1);
-      toast.success('Added to cart!');
-    } catch {
-      toast.error('Failed to add');
-    } finally {
-      setAdding(false);
-    }
-  };
+// ─────────────────────────────────────────────────────────────────────────────
+//  VALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+type FormErrors = Partial<Record<keyof CouponFormData, string>>;
 
-  const handleBuyNow = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    try {
-      await addToCart(product.id, 1);
-      navigate('/checkout');
-    } catch {
-      toast.error('Failed');
-    }
-  };
+function validate(f: CouponFormData): FormErrors {
+  const e: FormErrors = {};
 
-  const handleRemove = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setRemoving(true);
-    try {
-      await wishlistAPI.toggle(product.id);
-      onRemove(product.id);
-      toast.success('Removed from wishlist');
-    } catch {
-      toast.error('Failed to remove');
-    } finally {
-      setRemoving(false);
-    }
-  };
+  if (!f.couponCode.trim())
+    e.couponCode = 'Coupon code is required';
+  else if (!/^[A-Z0-9_-]{3,30}$/.test(f.couponCode))
+    e.couponCode = 'Only uppercase letters, numbers, _ and – (3–30 chars)';
 
+  if (!f.description.trim())
+    e.description = 'Description is required';
+
+  if (!f.discountAmount)
+    e.discountAmount = 'Discount amount is required';
+  else if (+f.discountAmount <= 0)
+    e.discountAmount = 'Must be greater than 0';
+  else if (f.couponType === 'PERCENTAGE' && +f.discountAmount > 100)
+    e.discountAmount = 'Percentage cannot exceed 100';
+
+  if (!f.maximumDiscountAmount)
+    e.maximumDiscountAmount = 'Max discount cap is required';
+  else if (+f.maximumDiscountAmount <= 0)
+    e.maximumDiscountAmount = 'Must be greater than 0';
+
+  if (!f.minOrderAmount)
+    e.minOrderAmount = 'Minimum order amount is required';
+  else if (+f.minOrderAmount <= 0)
+    e.minOrderAmount = 'Must be greater than 0';
+
+  if (!f.validFrom)
+    e.validFrom = 'Valid from date is required';
+
+  if (!f.expiryAt)
+    e.expiryAt = 'Expiry date is required';
+  else if (f.validFrom && new Date(f.expiryAt) <= new Date(f.validFrom))
+    e.expiryAt = 'Expiry must be after valid-from date';
+  else if (new Date(f.expiryAt) <= new Date())
+    e.expiryAt = 'Expiry date must be in the future';
+
+  if (!f.perUserLimit)
+    e.perUserLimit = 'Per-user limit is required';
+  else if (+f.perUserLimit <= 0)
+    e.perUserLimit = 'Must be at least 1';
+
+  if (!f.globalUsageLimit)
+    e.globalUsageLimit = 'Global usage limit is required';
+  else if (+f.globalUsageLimit <= 0)
+    e.globalUsageLimit = 'Must be at least 1';
+
+  return e;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+const isExpired  = (d: string) => new Date(d) < new Date();
+const isNotValid = (d: string) => new Date(d) > new Date();
+
+const fmtDateTime = (d: string) =>
+  new Date(d).toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+
+// "now + N days" as "yyyy-MM-ddTHH:mm" for datetime-local input
+const dtPlus = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 16);
+};
+
+const nowDt = () => new Date().toISOString().slice(0, 16);
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SUB-COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+const CouponStatusBadge: React.FC<{ coupon: Coupon }> = ({ coupon }) => {
+  if (!coupon.isActive)               return <span className="badge badge-gray">Inactive</span>;
+  if (isExpired(coupon.expiryAt))     return <span className="badge badge-red">Expired</span>;
+  if (isNotValid(coupon.validFrom))   return <span className="badge badge-blue">Scheduled</span>;
+  return                                     <span className="badge badge-green">Live</span>;
+};
+
+const CopyButton: React.FC<{ code: string }> = ({ code }) => {
+  const [copied, setCopied] = useState(false);
   return (
-    <Link
-      to={`/products/${product.id}`}
-      style={{ display: 'block', height: '100%', textDecoration: 'none' }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+    <button
+      onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
+      className="btn btn-ghost btn-sm px-1.5"
+      title="Copy code"
     >
-      <div
-        style={{
-          position: 'relative', borderRadius: '14px', overflow: 'hidden',
-          height: '100%', display: 'flex', flexDirection: 'column',
-          background: hovered
-            ? 'linear-gradient(160deg, #1e1c17 0%, #151310 100%)'
-            : 'linear-gradient(160deg, #161616 0%, #0f0f0f 100%)',
-          border: hovered ? '1px solid rgba(212,175,55,0.55)' : '1px solid rgba(255,255,255,0.06)',
-          boxShadow: hovered
-            ? '0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(212,175,55,0.08) inset'
-            : '0 2px 16px rgba(0,0,0,0.35)',
-          transform: hovered ? 'translateY(-5px)' : 'translateY(0)',
-          transition: 'all 0.38s cubic-bezier(0.34,1.56,0.64,1)',
-        }}
-      >
-        {/* Image */}
-        <div
-          style={{
-            position: 'relative', height: '220px', background: '#fff',
-            overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={product.name}
-              style={{
-                width: '100%', height: '100%', objectFit: 'contain', padding: '16px',
-                transform: hovered ? 'scale(1.07)' : 'scale(1)',
-                transition: 'transform 0.55s ease',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: '100%', height: '100%', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a1a, #252525)',
-                fontSize: '4rem', fontWeight: 700, color: 'rgba(212,175,55,0.25)',
-                fontFamily: "'Playfair Display', serif",
-              }}
-            >
-              {product.name?.[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
-
-          {/* Overlay badges */}
-          <div
-            style={{
-              position: 'absolute', inset: 0, padding: '12px',
-              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-              pointerEvents: 'none',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <span
-                style={{
-                  fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.1em',
-                  textTransform: 'uppercase', padding: '3px 9px', borderRadius: '20px',
-                  background: 'rgba(20,20,20,0.75)',
-                  border: inStock ? '1px solid rgba(74,222,128,0.5)' : '1px solid rgba(248,113,113,0.5)',
-                  color: inStock ? '#4ade80' : '#f87171', backdropFilter: 'blur(8px)',
-                }}
-              >
-                {inStock ? 'In Stock' : 'Sold Out'}
-              </span>
-            </div>
-            {hasDiscount && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                <span
-                  style={{
-                    fontSize: '10px', fontWeight: 800, padding: '3px 9px', borderRadius: '20px',
-                    background: 'rgba(20,20,20,0.75)', border: '1px solid rgba(74,222,128,0.45)',
-                    color: '#4ade80', backdropFilter: 'blur(8px)', letterSpacing: '0.04em',
-                  }}
-                >
-                  −{discountPercent}%
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Remove (Wishlist) button */}
-          <button
-            onClick={handleRemove}
-            disabled={removing}
-            style={{
-              position: 'absolute', top: '10px', left: '10px',
-              width: '34px', height: '34px', borderRadius: '10px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(244,63,94,0.18)', border: '1px solid rgba(244,63,94,0.4)',
-              color: '#fb7185', backdropFilter: 'blur(8px)',
-              cursor: removing ? 'not-allowed' : 'pointer',
-              transition: 'all 0.25s ease', zIndex: 10, pointerEvents: 'auto',
-              opacity: removing ? 0.5 : 1,
-            }}
-            title="Remove from wishlist"
-          >
-            <Heart size={13} fill="currentColor" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', gap: '8px' }}>
-          {product.categoryName && (
-            <p style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(212,175,55,0.65)', margin: 0 }}>
-              {typeof product.categoryName === 'object' ? (product.categoryName as any).name : product.categoryName}
-            </p>
-          )}
-
-          <h3
-            style={{
-              fontFamily: "'Playfair Display', serif", fontSize: '1rem', fontWeight: 600,
-              lineHeight: 1.35, color: hovered ? '#d4af37' : '#e5e5e5',
-              transition: 'color 0.25s ease', margin: 0,
-            }}
-          >
-            {product.name}
-          </h3>
-
-          <p
-            style={{
-              fontSize: '11.5px', lineHeight: 1.65, color: 'rgba(255,255,255,0.3)',
-              margin: 0, flex: 1,
-              display: '-webkit-box', WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}
-          >
-            {product.description}
-          </p>
-
-          {/* Star rating — real data if available, else "No reviews yet" */}
-          {(product as any).averageRating > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                {[1, 2, 3, 4, 5].map((star) => {
-                  const rating = (product as any).averageRating;
-                  const filled = star <= Math.floor(rating);
-                  const partial = !filled && star === Math.ceil(rating);
-                  return (
-                    <div key={star} style={{ position: 'relative', width: '11px', height: '11px' }}>
-                      {/* Background star */}
-                      <Star size={11} style={{ color: 'rgba(255,255,255,0.12)', fill: 'rgba(255,255,255,0.12)', position: 'absolute', top: 0, left: 0 }} />
-                      {/* Filled / partial star */}
-                      {(filled || partial) && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, width: partial ? `${((rating % 1) * 100)}%` : '100%', overflow: 'hidden' }}>
-                          <Star size={11} style={{ color: '#d4af37', fill: '#d4af37' }} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <span style={{ fontSize: '10.5px', color: '#d4af37', fontWeight: 600 }}>
-                {Number((product as any).averageRating).toFixed(1)}
-              </span>
-              {(product as any).reviewCount > 0 && (
-                <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.25)' }}>
-                  ({(product as any).reviewCount})
-                </span>
-              )}
-            </div>
-          ) : (
-            <p style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.2)', margin: '2px 0 0', fontStyle: 'italic' }}>
-              No reviews yet
-            </p>
-          )}
-
-          {/* Price */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.35rem', fontWeight: 700, color: '#d4af37', letterSpacing: '-0.02em' }}>
-              {formatPrice(finalPrice)}
-            </span>
-            {hasDiscount && (
-              <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.28)', textDecoration: 'line-through' }}>
-                {formatPrice(product.price)}
-              </span>
-            )}
-            {hasDiscount && (
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#4ade80' }}>
-                {discountPercent}% off
-              </span>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-            {/* Add to Cart */}
-            <button
-              onClick={handleAdd}
-              disabled={adding || !inStock}
-              style={{
-                flex: 1, padding: '9px 0', borderRadius: '9px',
-                fontSize: '11.5px', fontWeight: 600, letterSpacing: '0.05em',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                background: 'transparent', border: '1px solid rgba(212,175,55,0.35)',
-                color: !inStock ? 'rgba(212,175,55,0.3)' : 'rgba(212,175,55,0.85)',
-                cursor: adding || !inStock ? 'not-allowed' : 'pointer',
-                opacity: !inStock ? 0.45 : 1, transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                if (!adding && inStock) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(212,175,55,0.08)';
-              }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-            >
-              <ShoppingBag size={12} />
-              {adding ? 'Adding…' : 'Add to Cart'}
-            </button>
-
-            {/* Buy Now */}
-            <button
-              onClick={handleBuyNow}
-              disabled={!inStock}
-              style={{
-                flex: 1, padding: '9px 0', borderRadius: '9px',
-                fontSize: '11.5px', fontWeight: 700, letterSpacing: '0.05em',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                border: 'none',
-                background: inStock
-                  ? 'linear-gradient(135deg, #c9a227 0%, #d4af37 50%, #b8861e 100%)'
-                  : 'rgba(80,80,80,0.3)',
-                color: inStock ? '#0a0a0a' : 'rgba(255,255,255,0.2)',
-                cursor: !inStock ? 'not-allowed' : 'pointer', transition: 'filter 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                if (inStock) (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1.12)';
-              }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.filter = 'none'; }}
-            >
-              <Zap size={12} />
-              Buy Now
-            </button>
-
-            {/* Remove button */}
-            <button
-              onClick={handleRemove}
-              disabled={removing}
-              style={{
-                padding: '9px 12px', borderRadius: '9px',
-                fontSize: '11.5px', fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'transparent', border: '1px solid rgba(248,113,113,0.3)',
-                color: 'rgba(248,113,113,0.7)',
-                cursor: removing ? 'not-allowed' : 'pointer', transition: 'all 0.2s ease',
-                opacity: removing ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(248,113,113,0.08)';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.5)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.3)';
-              }}
-              title="Remove from wishlist"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-        </div>
-
-        {/* Gold shimmer bottom line on hover */}
-        <div
-          style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: '2px',
-            background: 'linear-gradient(90deg, transparent 0%, #c9a227 30%, #d4af37 50%, #c9a227 70%, transparent 100%)',
-            opacity: hovered ? 1 : 0, transition: 'opacity 0.4s ease',
-          }}
-        />
-      </div>
-    </Link>
+      {copied ? <Check size={11} className="text-gold-400" /> : <Copy size={11} />}
+    </button>
   );
 };
 
-/* ── Skeleton Card ── */
-const SkeletonCard = () => (
-  <div style={{ borderRadius: '14px', overflow: 'hidden', background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.05)', height: '460px' }}>
-    <div style={{ height: '220px', background: 'linear-gradient(90deg, #181818 25%, #222 50%, #181818 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.6s infinite' }} />
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {[['35%', '8px'], ['70%', '14px'], ['90%', '10px'], ['50%', '10px']].map(([w, h], i) => (
-        <div key={i} style={{ height: h, width: w, borderRadius: '4px', background: 'linear-gradient(90deg, #1c1c1c 25%, #262626 50%, #1c1c1c 75%)', backgroundSize: '200% 100%', animation: `shimmer 1.6s infinite ${i * 0.12}s` }} />
-      ))}
+const TypeToggle: React.FC<{ value: CouponType; onChange: (v: CouponType) => void }> = ({ value, onChange }) => (
+  <div className="flex rounded-sm border border-obsidian-700 overflow-hidden">
+    {(['PERCENTAGE', 'FLAT'] as CouponType[]).map(t => (
+      <button key={t} type="button" onClick={() => onChange(t)}
+        className={cn(
+          'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-[10px] tracking-widest uppercase font-medium transition-all duration-150',
+          value === t
+            ? 'bg-gold-400/10 text-gold-400 border-r border-gold-400/30'
+            : 'text-obsidian-500 hover:text-obsidian-300 hover:bg-obsidian-800/50'
+        )}>
+        {t === 'PERCENTAGE' ? <Percent size={12} /> : <IndianRupee size={12} />}
+        {t === 'PERCENTAGE' ? 'Percentage' : 'Flat Amount'}
+      </button>
+    ))}
+  </div>
+);
+
+const StatCard: React.FC<{
+  icon: React.ReactNode; label: string; value: string | number; accent?: boolean;
+}> = ({ icon, label, value, accent }) => (
+  <div className={cn('card border-obsidian-800 p-5 flex flex-col gap-3', accent && 'border-gold-400/20 bg-gold-400/5')}>
+    <div className={cn('w-9 h-9 rounded-sm flex items-center justify-center', accent ? 'bg-gold-400/10 text-gold-400' : 'bg-obsidian-800 text-obsidian-400')}>
+      {icon}
+    </div>
+    <div>
+      <p className={cn('font-display text-2xl font-medium', accent ? 'text-gold-400' : 'text-obsidian-100')}>{value}</p>
+      <p className="text-[10px] tracking-widest uppercase text-obsidian-500 mt-0.5">{label}</p>
     </div>
   </div>
 );
 
-/* ── Main Wishlist Page ── */
-const WishlistPage: React.FC = () => {
-  const [items, setItems] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+// ── Tooltip hint ──────────────────────────────────────────────────────────────
+const Hint: React.FC<{ text: string }> = ({ text }) => (
+  <span className="group relative inline-flex ml-1.5 cursor-help">
+    <Info size={11} className="text-obsidian-600 group-hover:text-gold-400 transition-colors" />
+    <span className="pointer-events-none absolute left-5 -top-1 z-50 w-52 rounded-sm border border-obsidian-700 bg-obsidian-900 px-3 py-2 text-xs text-obsidian-400 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+      {text}
+    </span>
+  </span>
+);
 
-  const fetchWishlist = async () => {
+// ─────────────────────────────────────────────────────────────────────────────
+//  MAIN PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const AddCouponPage: React.FC = () => {
+  const [coupons,    setCoupons]    = useState<Coupon[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [page,       setPage]       = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search,     setSearch]     = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'LIVE' | 'SCHEDULED' | 'EXPIRED' | 'INACTIVE'>('ALL');
+
+  const [modal,    setModal]   = useState(false);
+  const [form,     setForm]    = useState<CouponFormData>(defaultForm);
+  const [errors,   setErrors]  = useState<FormErrors>({});
+  const [saving,   setSaving]  = useState(false);
+  const [touched,  setTouched] = useState<Partial<Record<keyof CouponFormData, boolean>>>({});
+
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [deleting,  setDeleting]  = useState(false);
+
+  // ── Fetch ───────────────────────────────────────────────────────────────
+  const fetchCoupons = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await wishlistAPI.get(0, 20);
-      const data = res.data.content || [];
-      setItems(data.filter((item: Product) => item && item.id));
+      const res = await couponAPI.getAll({ pageNumber: page, pageSize: 12 });
+      const data = res.data as { content?: Coupon[]; totalPages?: number };
+      setCoupons(data.content ?? (res.data as Coupon[]) ?? []);
+      setTotalPages(data.totalPages ?? 1);
     } catch {
-      toast.error('Failed to load wishlist');
+      toast.error('Failed to load coupons');
     } finally {
       setLoading(false);
     }
+  }, [page]);
+
+  useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
+
+  // ── Filtered list ───────────────────────────────────────────────────────
+  const filtered = coupons.filter(c => {
+    const matchSearch = !search || c.couponCode.toLowerCase().includes(search.toLowerCase());
+    const matchStatus =
+      filterStatus === 'ALL'       ? true :
+      filterStatus === 'LIVE'      ? c.isActive && !isExpired(c.expiryAt) && !isNotValid(c.validFrom) :
+      filterStatus === 'SCHEDULED' ? c.isActive && isNotValid(c.validFrom) :
+      filterStatus === 'EXPIRED'   ? isExpired(c.expiryAt) :
+      filterStatus === 'INACTIVE'  ? !c.isActive : true;
+    return matchSearch && matchStatus;
+  });
+
+  // ── Stats ───────────────────────────────────────────────────────────────
+  const stats = {
+    total:     coupons.length,
+    live:      coupons.filter(c => c.isActive && !isExpired(c.expiryAt) && !isNotValid(c.validFrom)).length,
+    scheduled: coupons.filter(c => c.isActive && isNotValid(c.validFrom)).length,
+    expired:   coupons.filter(c => isExpired(c.expiryAt)).length,
+    inactive:  coupons.filter(c => !c.isActive).length,
   };
 
-  useEffect(() => { fetchWishlist(); }, []);
-
-  const handleRemove = (productId: number) => {
-    setItems((prev) => prev.filter((p) => p.id !== productId));
+  // ── Form helpers ────────────────────────────────────────────────────────
+  const openCreate = () => {
+    setForm({ ...defaultForm, validFrom: nowDt() });
+    setErrors({});
+    setTouched({});
+    setModal(true);
   };
 
+  const closeModal = () => { setModal(false); setErrors({}); setTouched({}); };
+
+  const setField = <K extends keyof CouponFormData>(key: K, value: CouponFormData[K]) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    setTouched(prev => ({ ...prev, [key]: true }));
+    // Re-validate this field live
+    const next = { ...form, [key]: value };
+    const errs = validate(next);
+    setErrors(prev => ({ ...prev, [key]: errs[key] }));
+  };
+
+  const generateCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const code = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    setField('couponCode', code);
+  };
+
+  // ── Save ────────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    // Mark all fields touched
+    const allTouched = Object.keys(defaultForm).reduce(
+      (acc, k) => ({ ...acc, [k]: true }), {} as Record<keyof CouponFormData, boolean>
+    );
+    setTouched(allTouched);
+
+    const errs = validate(form);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      toast.error('Please fix the errors before saving');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Payload matches AddCouponRequestDTO exactly
+      const payload = {
+        couponCode:            form.couponCode,
+        couponType:            form.couponType,
+        description:           form.description,
+        minOrderAmount:        Number(form.minOrderAmount),
+        discountAmount:        Number(form.discountAmount),
+        maximumDiscountAmount: Number(form.maximumDiscountAmount),
+        expiryAt:              form.expiryAt,              // "yyyy-MM-dd'T'HH:mm"
+        validFrom:             form.validFrom,             // "yyyy-MM-dd'T'HH:mm"
+        isActive:              form.isActive,
+        perUserLimit:          Number(form.perUserLimit),
+        globalUsageLimit:      Number(form.globalUsageLimit),
+      };
+
+      await couponAPI.create(payload);
+      toast.success(`Coupon "${form.couponCode}" created!`);
+      closeModal();
+      fetchCoupons();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Failed to create coupon');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Delete ──────────────────────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (confirmId === null) return;
+    setDeleting(true);
+    try {
+      await couponAPI.delete(confirmId);
+      toast.success('Coupon deleted');
+      setConfirmId(null);
+      fetchCoupons();
+    } catch {
+      toast.error('Failed to delete');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // ── Toggle active ───────────────────────────────────────────────────────
+  const handleToggle = async (c: Coupon) => {
+    try {
+      await couponAPI.update(c.couponId, { isActive: !c.isActive });
+      toast.success(`Coupon ${c.isActive ? 'deactivated' : 'activated'}`);
+      fetchCoupons();
+    } catch {
+      toast.error('Failed to update status');
+    }
+  };
+
+  // ── Input helper for error class ────────────────────────────────────────
+  const inputCls = (key: keyof CouponFormData) =>
+    cn('input', touched[key] && errors[key] && 'border-red-500 focus:border-red-400 focus:ring-red-400/20');
+
+  // ────────────────────────────────────────────────────────────────────────
   return (
-    <>
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position:  200% 0; }
-          100% { background-position: -200% 0; }
-        }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+    <div className="page-wrapper">
+      <div className="container-wide py-10">
 
-      <div style={{ minHeight: '100vh', background: '#080808' }}>
-
-        {/* Hero / Header */}
-        <div
-          style={{
-            position: 'relative', overflow: 'hidden',
-            padding: '110px 0 52px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-            animation: 'fadeUp 0.6s ease both',
-          }}
-        >
-          {/* Ambient glow */}
-          <div
-            style={{
-              position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)',
-              width: '600px', height: '300px',
-              background: 'radial-gradient(ellipse at center, rgba(244,63,94,0.05) 0%, transparent 70%)',
-              pointerEvents: 'none',
-            }}
-          />
-
-          <div className="container-wide" style={{ position: 'relative' }}>
-            {/* Eyebrow */}
-            <div
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '8px',
-                marginBottom: '18px', padding: '5px 14px', borderRadius: '20px',
-                background: 'rgba(244,63,94,0.07)', border: '1px solid rgba(244,63,94,0.18)',
-              }}
-            >
-              <Heart size={11} style={{ color: '#f43f5e' }} fill="#f43f5e" />
-              <span style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(244,63,94,0.8)' }}>
-                Your Wishlist
-              </span>
-            </div>
-
-            <h1
-              style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 700,
-                color: '#f0f0f0', letterSpacing: '-0.03em', lineHeight: 1.08, margin: '0 0 12px',
-              }}
-            >
-              Saved{' '}
-              <span style={{ background: 'linear-gradient(135deg, #f43f5e, #fb7185)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Items
-              </span>
-            </h1>
-
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.32)', letterSpacing: '0.04em', margin: 0 }}>
-              {loading ? 'Loading…' : `${items.length} item${items.length !== 1 ? 's' : ''} saved for later`}
+        {/* ── Page header ─────────────────────────────────────────── */}
+        <div className="flex items-end justify-between mb-10">
+          <div>
+            <p className="text-[10px] tracking-widest uppercase text-gold-400 mb-2">Admin / Coupons</p>
+            <h1 className="page-title">Discount Coupons</h1>
+            <p className="text-obsidian-500 mt-1.5 text-sm">
+              Create and manage promotional discount codes for your store
             </p>
+          </div>
+          <button className="btn btn-primary gap-2" onClick={openCreate}>
+            <Plus size={14} /> New Coupon
+          </button>
+        </div>
+
+        {/* ── Stats ───────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <StatCard icon={<Tag size={16} />}           label="Total"     value={stats.total}     accent />
+          <StatCard icon={<Check size={16} />}         label="Live"      value={stats.live}      />
+          <StatCard icon={<CalendarDays size={16} />}  label="Scheduled" value={stats.scheduled} />
+          <StatCard icon={<TrendingDown size={16} />}  label="Expired"   value={stats.expired}   />
+          <StatCard icon={<ToggleLeft size={16} />}    label="Inactive"  value={stats.inactive}  />
+        </div>
+
+        {/* ── Toolbar ─────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-obsidian-600" />
+            <input
+              className="input pl-9"
+              placeholder="Search by coupon code…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {(['ALL', 'LIVE', 'SCHEDULED', 'EXPIRED', 'INACTIVE'] as const).map(f => (
+              <button key={f} onClick={() => setFilterStatus(f)}
+                className={cn('btn btn-sm px-3', filterStatus === f ? 'btn-primary' : 'btn-outline')}>
+                {f}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Grid */}
-        <div className="container-wide" style={{ padding: '48px 0 80px' }}>
-          {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '24px' }}>
-              {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-            </div>
-          ) : items.length === 0 ? (
-            <div
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                justifyContent: 'center', padding: '96px 0', gap: '16px', animation: 'fadeUp 0.4s ease',
-              }}
-            >
-              <div
-                style={{
-                  width: '80px', height: '80px', borderRadius: '50%',
-                  background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.18)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(244,63,94,0.45)',
-                }}
-              >
-                <Heart size={32} />
-              </div>
-              <p style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.3rem', color: 'rgba(255,255,255,0.55)', margin: 0 }}>
-                Your wishlist is empty
-              </p>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.25)', margin: 0 }}>
-                Save items you love to find them later
-              </p>
-              <Link
-                to="/products"
-                style={{
-                  marginTop: '8px', padding: '11px 28px', borderRadius: '9px',
-                  fontSize: '12px', fontWeight: 700, letterSpacing: '0.08em',
-                  color: '#0a0a0a', background: 'linear-gradient(135deg, #c9a227, #d4af37)',
-                  textDecoration: 'none', transition: 'filter 0.2s ease',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.filter = 'brightness(1.1)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.filter = 'none'; }}
-              >
-                Browse Collection
-              </Link>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
-                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.2)', margin: 0, letterSpacing: '0.05em' }}>
-                  {items.length} item{items.length !== 1 ? 's' : ''} saved
-                </p>
-                <div style={{ height: '1px', flex: 1, margin: '0 20px', background: 'linear-gradient(90deg, rgba(244,63,94,0.12), transparent)' }} />
-              </div>
+        {/* ── Table ───────────────────────────────────────────────── */}
+        {loading ? <LoadingPage /> : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Tag size={48} strokeWidth={1} className="text-obsidian-700" />}
+            title="No coupons found"
+            description={search ? `No results for "${search}"` : 'Create your first discount coupon to get started'}
+            action={
+              <button className="btn btn-primary gap-2" onClick={openCreate}>
+                <Plus size={14} /> New Coupon
+              </button>
+            }
+          />
+        ) : (
+          <>
+            <div className="card border-obsidian-800 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-obsidian-800">
+                      {['Code', 'Type', 'Discount', 'Max Cap', 'Min Order', 'Validity', 'Limits', 'Status', ''].map(h => (
+                        <th key={h} className="text-left px-4 py-3.5 text-[10px] tracking-widest uppercase text-obsidian-500 font-medium whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(c => (
+                      <tr key={c.couponId}
+                        className="border-b border-obsidian-800/50 hover:bg-obsidian-800/30 transition-colors group">
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '24px' }}>
-                {items.map((product, i) => (
-                  <div key={product.id} style={{ animation: `fadeUp 0.5s ease both`, animationDelay: `${i * 55}ms` }}>
-                    <WishlistCard product={product} onRemove={handleRemove} />
-                  </div>
-                ))}
+                        {/* Code */}
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-semibold text-obsidian-100 tracking-wider">
+                              {c.couponCode}
+                            </span>
+                            <CopyButton code={c.couponCode} />
+                          </div>
+                          <p className="text-obsidian-600 text-xs mt-0.5 max-w-[160px] truncate">{c.description}</p>
+                        </td>
+
+                        {/* Type */}
+                        <td className="px-4 py-4">
+                          <span className={cn('badge', c.couponType === 'PERCENTAGE' ? 'badge-blue' : 'badge-gold')}>
+                            {c.couponType === 'PERCENTAGE'
+                              ? <><Percent size={9} className="mr-1" />Percent</>
+                              : <><IndianRupee size={9} className="mr-1" />Flat</>
+                            }
+                          </span>
+                        </td>
+
+                        {/* Discount */}
+                        <td className="px-4 py-4">
+                          <span className="font-display text-gold-400 text-base font-medium">
+                            {c.couponType === 'PERCENTAGE'
+                              ? `${c.discountAmount}%`
+                              : `₹${Number(c.discountAmount).toLocaleString('en-IN')}`
+                            }
+                          </span>
+                        </td>
+
+                        {/* Max cap */}
+                        <td className="px-4 py-4 text-obsidian-400 text-xs">
+                          ₹{Number(c.maximumDiscountAmount).toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Min order */}
+                        <td className="px-4 py-4 text-obsidian-400 text-xs">
+                          ₹{Number(c.minOrderAmount).toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Validity dates */}
+                        <td className="px-4 py-4">
+                          <div className="text-xs space-y-0.5">
+                            <p className="text-obsidian-400">
+                              <span className="text-obsidian-600 mr-1">From</span>
+                              {fmtDateTime(c.validFrom)}
+                            </p>
+                            <p className={cn('text-xs', isExpired(c.expiryAt) ? 'text-red-400' : 'text-obsidian-400')}>
+                              <span className="text-obsidian-600 mr-1">Until</span>
+                              {fmtDateTime(c.expiryAt)}
+                            </p>
+                          </div>
+                        </td>
+
+                        {/* Usage limits */}
+                        <td className="px-4 py-4">
+                          <div className="text-xs space-y-0.5 text-obsidian-400">
+                            <p><Users size={9} className="inline mr-1 text-obsidian-600" />{c.perUserLimit}× per user</p>
+                            <p><Globe size={9} className="inline mr-1 text-obsidian-600" />{c.globalUsageLimit} total</p>
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-4">
+                          <CouponStatusBadge coupon={c} />
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              title={c.isActive ? 'Deactivate' : 'Activate'}
+                              className="btn btn-ghost btn-sm px-2"
+                              onClick={() => handleToggle(c)}
+                            >
+                              {c.isActive
+                                ? <ToggleRight size={15} className="text-gold-400" />
+                                : <ToggleLeft  size={15} className="text-obsidian-500" />
+                              }
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm px-2"
+                              onClick={() => setConfirmId(c.couponId)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </>
+            </div>
+            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+          </>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════
+           CREATE COUPON MODAL
+      ════════════════════════════════════════════════════════════ */}
+      <Modal
+        open={modal}
+        onClose={closeModal}
+        title="New Discount Coupon"
+        maxWidth="max-w-2xl"
+        footer={
+          <>
+            <button className="btn btn-outline" onClick={closeModal}>Cancel</button>
+            <button className="btn btn-primary gap-2" onClick={handleSave} disabled={saving}>
+              {saving
+                ? <><Spinner className="w-4 h-4" /> Creating…</>
+                : <><Plus size={14} /> Create Coupon</>
+              }
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-5">
+
+          {/* Section: Basic Info */}
+          <div>
+            <p className="text-[10px] tracking-widest uppercase text-obsidian-500 mb-3">Basic Info</p>
+            <div className="grid grid-cols-1 gap-4">
+
+              {/* Coupon Code */}
+              <Field label="Coupon Code" required error={touched.couponCode ? errors.couponCode : undefined}>
+                <div className="flex gap-2">
+                  <input
+                    className={cn(inputCls('couponCode'), 'font-mono uppercase tracking-widest flex-1')}
+                    placeholder="e.g. SAVE20"
+                    maxLength={30}
+                    value={form.couponCode}
+                    onChange={e => setField('couponCode', e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                  />
+                  <button type="button" className="btn btn-outline whitespace-nowrap" onClick={generateCode}>
+                    Generate
+                  </button>
+                </div>
+              </Field>
+
+              {/* Description */}
+              <Field label="Description" required error={touched.description ? errors.description : undefined}>
+                <textarea
+                  rows={2}
+                  className={cn(inputCls('description'), 'resize-none')}
+                  placeholder="e.g. Get 20% off on orders above ₹999"
+                  value={form.description}
+                  onChange={e => setField('description', e.target.value)}
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div className="divider" />
+
+          {/* Section: Discount Config */}
+          <div>
+            <p className="text-[10px] tracking-widest uppercase text-obsidian-500 mb-3">Discount Configuration</p>
+            <div className="flex flex-col gap-4">
+
+              {/* Type toggle */}
+              <Field label="Coupon Type" required>
+                <TypeToggle value={form.couponType} onChange={v => setField('couponType', v)} />
+              </Field>
+
+              <div className="grid grid-cols-3 gap-4">
+                {/* Discount Amount */}
+                <Field
+                  label={form.couponType === 'PERCENTAGE' ? 'Discount (%)' : 'Discount (₹)'}
+                  required
+                  error={touched.discountAmount ? errors.discountAmount : undefined}
+                >
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-500">
+                      {form.couponType === 'PERCENTAGE' ? <Percent size={13} /> : <IndianRupee size={13} />}
+                    </span>
+                    <input
+                      type="number" min="0.01" step="0.01"
+                      max={form.couponType === 'PERCENTAGE' ? 100 : undefined}
+                      className={cn(inputCls('discountAmount'), 'pl-8')}
+                      placeholder={form.couponType === 'PERCENTAGE' ? '20' : '200'}
+                      value={form.discountAmount}
+                      onChange={e => setField('discountAmount', e.target.value)}
+                    />
+                  </div>
+                </Field>
+
+                {/* Maximum Discount Amount (cap) */}
+                <Field
+                  label={
+                    <span className="flex items-center">
+                      Max Discount Cap (₹)
+                      <Hint text="Maximum ₹ off a customer can get, even if the percentage discount is higher." />
+                    </span> as any
+                  }
+                  required
+                  error={touched.maximumDiscountAmount ? errors.maximumDiscountAmount : undefined}
+                >
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-500">
+                      <IndianRupee size={13} />
+                    </span>
+                    <input
+                      type="number" min="0.01" step="0.01"
+                      className={cn(inputCls('maximumDiscountAmount'), 'pl-8')}
+                      placeholder="500"
+                      value={form.maximumDiscountAmount}
+                      onChange={e => setField('maximumDiscountAmount', e.target.value)}
+                    />
+                  </div>
+                </Field>
+
+                {/* Min Order Amount */}
+                <Field
+                  label="Min Order (₹)"
+                  required
+                  error={touched.minOrderAmount ? errors.minOrderAmount : undefined}
+                >
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-500">
+                      <ShoppingCart size={13} />
+                    </span>
+                    <input
+                      type="number" min="0.01" step="0.01"
+                      className={cn(inputCls('minOrderAmount'), 'pl-8')}
+                      placeholder="999"
+                      value={form.minOrderAmount}
+                      onChange={e => setField('minOrderAmount', e.target.value)}
+                    />
+                  </div>
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          <div className="divider" />
+
+          {/* Section: Validity */}
+          <div>
+            <p className="text-[10px] tracking-widest uppercase text-obsidian-500 mb-3">Validity Period</p>
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* Valid From */}
+              <Field label="Valid From" required error={touched.validFrom ? errors.validFrom : undefined}>
+                <input
+                  type="datetime-local"
+                  className={inputCls('validFrom')}
+                  value={form.validFrom}
+                  onChange={e => setField('validFrom', e.target.value)}
+                />
+              </Field>
+
+              {/* Expiry At */}
+              <Field label="Expires At" required error={touched.expiryAt ? errors.expiryAt : undefined}>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="datetime-local"
+                    className={inputCls('expiryAt')}
+                    min={form.validFrom || nowDt()}
+                    value={form.expiryAt}
+                    onChange={e => setField('expiryAt', e.target.value)}
+                  />
+                  {/* Quick expiry presets */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      { label: '+7d',   days: 7   },
+                      { label: '+30d',  days: 30  },
+                      { label: '+90d',  days: 90  },
+                      { label: '+1yr',  days: 365 },
+                    ].map(p => (
+                      <button key={p.days} type="button"
+                        onClick={() => setField('expiryAt', dtPlus(p.days))}
+                        className={cn(
+                          'btn btn-sm px-2.5 py-1',
+                          form.expiryAt === dtPlus(p.days) ? 'btn-primary' : 'btn-ghost'
+                        )}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          <div className="divider" />
+
+          {/* Section: Usage Limits */}
+          <div>
+            <p className="text-[10px] tracking-widest uppercase text-obsidian-500 mb-3">Usage Limits</p>
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* Per User Limit */}
+              <Field
+                label={
+                  <span className="flex items-center">
+                    Per User Limit
+                    <Hint text="How many times a single customer can use this coupon." />
+                  </span> as any
+                }
+                required
+                error={touched.perUserLimit ? errors.perUserLimit : undefined}
+              >
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-500">
+                    <Users size={13} />
+                  </span>
+                  <input
+                    type="number" min="1" step="1"
+                    className={cn(inputCls('perUserLimit'), 'pl-8')}
+                    placeholder="e.g. 1"
+                    value={form.perUserLimit}
+                    onChange={e => setField('perUserLimit', e.target.value)}
+                  />
+                </div>
+              </Field>
+
+              {/* Global Usage Limit */}
+              <Field
+                label={
+                  <span className="flex items-center">
+                    Global Usage Limit
+                    <Hint text="Total number of times this coupon can be redeemed across all customers." />
+                  </span> as any
+                }
+                required
+                error={touched.globalUsageLimit ? errors.globalUsageLimit : undefined}
+              >
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-obsidian-500">
+                    <Globe size={13} />
+                  </span>
+                  <input
+                    type="number" min="1" step="1"
+                    className={cn(inputCls('globalUsageLimit'), 'pl-8')}
+                    placeholder="e.g. 500"
+                    value={form.globalUsageLimit}
+                    onChange={e => setField('globalUsageLimit', e.target.value)}
+                  />
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          <div className="divider" />
+
+          {/* Section: Activate toggle */}
+          <div className="flex items-center justify-between p-4 rounded-sm border border-obsidian-700 bg-obsidian-800/40">
+            <div>
+              <p className="text-sm font-medium text-obsidian-200">Activate Immediately</p>
+              <p className="text-xs text-obsidian-500 mt-0.5">
+                Coupon goes live as soon as it's created (if within validity period)
+              </p>
+            </div>
+            <button type="button" onClick={() => setField('isActive', !form.isActive)}
+              className="flex items-center gap-2 btn btn-ghost px-2">
+              {form.isActive
+                ? <ToggleRight size={30} className="text-gold-400" />
+                : <ToggleLeft  size={30} className="text-obsidian-600" />
+              }
+              <span className={cn('text-xs font-medium', form.isActive ? 'text-gold-400' : 'text-obsidian-500')}>
+                {form.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </button>
+          </div>
+
+          {/* Live Preview */}
+          {(form.couponCode || form.discountAmount) && (
+            <div className="rounded-sm border border-gold-400/20 bg-gold-400/5 p-4">
+              <p className="text-[10px] tracking-widest uppercase text-gold-400 mb-3 flex items-center gap-1.5">
+                <FileText size={11} /> Coupon Preview
+              </p>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="bg-obsidian-900 border border-dashed border-obsidian-600 rounded-sm px-3 py-2">
+                    <span className="font-mono font-bold text-obsidian-100 tracking-widest text-sm">
+                      {form.couponCode || '————'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-display text-gold-400 text-xl font-medium">
+                      {form.discountAmount
+                        ? form.couponType === 'PERCENTAGE'
+                          ? `${form.discountAmount}% OFF`
+                          : `₹${Number(form.discountAmount).toLocaleString('en-IN')} OFF`
+                        : '— OFF'
+                      }
+                    </p>
+                    {form.maximumDiscountAmount && form.couponType === 'PERCENTAGE' && (
+                      <p className="text-obsidian-500 text-xs">
+                        up to ₹{Number(form.maximumDiscountAmount).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right text-xs text-obsidian-500 space-y-0.5">
+                  {form.minOrderAmount && (
+                    <p>Min order ₹{Number(form.minOrderAmount).toLocaleString('en-IN')}</p>
+                  )}
+                  {form.validFrom && form.expiryAt && (
+                    <p>{fmtDateTime(form.validFrom)} → {fmtDateTime(form.expiryAt)}</p>
+                  )}
+                  {form.perUserLimit && form.globalUsageLimit && (
+                    <p>{form.perUserLimit}× / user · {form.globalUsageLimit} total uses</p>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
-      </div>
-    </>
+      </Modal>
+
+      {/* ── Delete confirm ───────────────────────────────────────── */}
+      <Modal
+        open={confirmId !== null}
+        onClose={() => setConfirmId(null)}
+        title="Delete Coupon"
+        maxWidth="max-w-sm"
+        footer={
+          <>
+            <button className="btn btn-outline" onClick={() => setConfirmId(null)}>Cancel</button>
+            <button className="btn btn-danger gap-2" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <><Spinner className="w-4 h-4" /> Deleting…</> : <><Trash2 size={13} /> Delete</>}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col items-center gap-4 py-2 text-center">
+          <div className="w-12 h-12 rounded-sm bg-red-400/10 flex items-center justify-center">
+            <AlertCircle size={24} className="text-red-400" />
+          </div>
+          <div>
+            <p className="text-obsidian-200 font-medium">This action cannot be undone.</p>
+            <p className="text-obsidian-500 text-sm mt-1.5">
+              Customers will immediately lose the ability to use this coupon.
+            </p>
+          </div>
+        </div>
+      </Modal>
+    </div>
   );
 };
 
-export default WishlistPage;
+export default AddCouponPage;
