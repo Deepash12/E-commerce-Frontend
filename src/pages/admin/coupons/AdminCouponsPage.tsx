@@ -1,8 +1,8 @@
+
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { couponAPI } from "@/api/service";
-// import { couponAPI } from "./../../../api/services";
-import apiClient from "@/api/client";
+import toast from "react-hot-toast";
 
 interface Coupon {
   id: number;
@@ -17,40 +17,58 @@ interface Coupon {
 }
 
 const AdminCouponsPage: React.FC = () => {
-
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
+  // Fetch all coupons
   const fetchCoupons = async () => {
-
     try {
-
       const res = await couponAPI.getAll({
         pageNumber: 0,
-        pageSize: 5
+        pageSize: 5,
       });
 
-      setCoupons(res.data.content);
-
-    } catch (err) {
-
-      console.error("Failed to fetch coupons", err);
-
+      setCoupons(res.data.content ?? []);
+    } catch (error) {
+      console.error("Failed to fetch coupons", error);
+      toast.error("Failed to load coupons");
+    } finally {
+      setLoading(false);
     }
-
   };
 
-  const toggleCouponStatus = async (id: number, currentStatus: boolean) => {
-    try {
+  // Enable / Disable coupon
+  const toggleCouponStatus = async (id: number) => {
+    if (updatingId !== null) return;
 
-      await apiClient.patch(`/coupon/toggle/${id}`, {
-        isActive: !currentStatus
-      }
+    setUpdatingId(id);
+
+    try {
+      const response = await couponAPI.toggle(id);
+
+      toast.success(
+        typeof response.data === "string"
+          ? response.data
+          : "Coupon status updated successfully"
       );
 
-      fetchCoupons(); // reload list
-
-    } catch (error) {
+      // Reload coupons after successful toggle
+      await fetchCoupons();
+    } catch (error: any) {
       console.error("Failed to update coupon status", error);
+
+      const errorMessage = error?.response?.data?.message;
+
+      toast.error(
+        typeof errorMessage === "string"
+          ? errorMessage
+          : typeof error?.response?.data === "string"
+          ? error.response.data
+          : "Failed to update coupon status"
+      );
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -58,14 +76,44 @@ const AdminCouponsPage: React.FC = () => {
     fetchCoupons();
   }, []);
 
+  // Status text
+  const getStatusLabel = (status: string) => {
+    if (status === "NOT_YET_STARTED") {
+      return "SCHEDULED";
+    }
+
+    return status;
+  };
+
+  // Status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+        return "text-green-400";
+
+      case "INACTIVE":
+        return "text-red-400";
+
+      case "NOT_YET_STARTED":
+        return "text-blue-400";
+
+      case "EXPIRED":
+        return "text-yellow-400";
+
+      case "USAGE_LIMIT_REACHED":
+        return "text-orange-400";
+
+      default:
+        return "text-gray-400";
+    }
+  };
+
   return (
-
     <div className="flex justify-center pt-28 pb-16">
+      <div className="w-full max-w-6xl px-4">
 
-      <div className="w-full max-w-6xl">
-
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
-
           <h1 className="text-2xl font-semibold">
             Manage Coupons
           </h1>
@@ -76,129 +124,173 @@ const AdminCouponsPage: React.FC = () => {
           >
             Add Coupon
           </Link>
-
         </div>
 
-        <div className="card p-6">
+        <div className="card p-6 overflow-x-auto">
 
-          {/* <table className="w-full text-left"> */}
-          <table className="w-full table-fixed">
+          {loading ? (
+            <p className="text-center py-8">
+              Loading coupons...
+            </p>
+          ) : (
+            <table className="w-full min-w-[1050px] text-left">
 
-            {/* <thead>
-              <tr className="border-b border-obsidian-700">
-                <th className="py-3">Code</th>
-                <th>Type</th>
-                <th>Discount</th>
-                <th>Minimum Order</th>
-                <th>Maximum Discount</th>
-                <th>Expiry</th>
-                <th>Status</th>
-              </tr>
-            </thead> */}
-
-            <thead>
-              <tr className="text-left border-b border-gray-700">
-                <th className="px-6 py-3">Code</th>
-                <th className="px-6 py-3">Type</th>
-                <th className="px-6 py-3">Discount</th>
-                <th className="px-6 py-3">Minimum Order</th>
-                <th className="px-6 py-3">Maximum Discount</th>
-                <th className="px-6 py-3">Expiry</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3 w-[150px]">Action</th>
-              </tr>
-            </thead>
-
-
-            <tbody>
-
-              {coupons.map((c) => (
-
-                <tr key={c.id} className="border-b border-gray-800 hover:bg-gray-900 transition">
-
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Link
-                      to={`/admin/coupons/view/${c.id}`}
-                      className="text-yellow-400 hover:underline"
-                    >
-                      {c.couponCode}
-                    </Link>
-                    </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{c.couponType}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{c.discountAmount}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{c.minOrderAmount}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{c.maximumDiscountAmount}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {new Date(c.expiryAt).toLocaleDateString()}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap">
-
-                    {c.calculatedStatus === "EXPIRED" ? (
-                      <span className="text-yellow-400 font-semibold">EXPIRED</span>
-                    ) : c.isActive ? (
-                      <span className="text-green-400 font-semibold">ACTIVE</span>
-                    ) : (
-                      <span className="text-red-400 font-semibold">INACTIVE</span>
-                    )}
-
-                  </td>
-
-                  <td className="px-6 py-4 flex items-center gap-4">
-
-                    {/* Toggle only if NOT expired */}
-                    {c.calculatedStatus !== "EXPIRED" && (
-
-                      <label
-                        className="relative inline-flex items-center cursor-pointer"
-                        title={c.isActive ? "Enabled" : "Disabled"}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={c.isActive}
-                          onChange={() => toggleCouponStatus(c.id, c.isActive)}
-                          className="sr-only peer"
-                        />
-
-                        <div className="w-11 h-6 bg-gray-600 rounded-full
-      peer-checked:bg-green-500
-      after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-      after:bg-white after:border after:rounded-full after:h-5 after:w-5
-      after:transition-all peer-checked:after:translate-x-full">
-                        </div>
-
-                      </label>
-
-                    )}
-
-                    {/* Edit button only if NOT expired */}
-                    {c.calculatedStatus !== "EXPIRED" && (
-
-                      <Link
-                        to={`/admin/coupons/edit/${c.id}`}
-                        className="px-3 py-1.5 bg-blue-500 text-white rounded"
-                      >
-                        Edit
-                      </Link>
-
-                    )}
-
-                  </td>
-
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="px-6 py-3">Code</th>
+                  <th className="px-6 py-3">Type</th>
+                  <th className="px-6 py-3">Discount</th>
+                  <th className="px-6 py-3">Minimum Order</th>
+                  <th className="px-6 py-3">Maximum Discount</th>
+                  <th className="px-6 py-3">Expiry</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Action</th>
                 </tr>
+              </thead>
 
-              ))}
+              <tbody>
+                {coupons.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="text-center py-8 text-gray-400"
+                    >
+                      No coupons found
+                    </td>
+                  </tr>
+                ) : (
+                  coupons.map((c) => {
+                    // Actual expiry check
+                    const isExpired =
+                      new Date(c.expiryAt).getTime() <= Date.now();
 
-            </tbody>
+                    return (
+                      <tr
+                        key={c.id}
+                        className="border-b border-gray-800 hover:bg-gray-900 transition"
+                      >
 
-          </table>
+                        {/* Coupon Code */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Link
+                            to={`/admin/coupons/view/${c.id}`}
+                            className="text-yellow-400 hover:underline"
+                          >
+                            {c.couponCode}
+                          </Link>
+                        </td>
 
+                        {/* Coupon Type */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {c.couponType}
+                        </td>
+
+                        {/* Discount */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {c.discountAmount}
+                        </td>
+
+                        {/* Minimum Order */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {c.minOrderAmount}
+                        </td>
+
+                        {/* Maximum Discount */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {c.maximumDiscountAmount}
+                        </td>
+
+                        {/* Expiry Date */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {new Date(c.expiryAt).toLocaleDateString()}
+                        </td>
+
+                        {/* Coupon Status */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`font-semibold ${getStatusColor(
+                              c.calculatedStatus
+                            )}`}
+                          >
+                            {getStatusLabel(c.calculatedStatus)}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+
+                            {/* Toggle only for non-expired coupons */}
+                            {!isExpired && (
+                              <label
+                                className={`relative inline-flex items-center ${
+                                  updatingId !== null
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : "cursor-pointer"
+                                }`}
+                                title={
+                                  c.isActive
+                                    ? "Disable coupon"
+                                    : "Enable coupon"
+                                }
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={c.isActive}
+                                  onChange={() =>
+                                    toggleCouponStatus(c.id)
+                                  }
+                                  disabled={updatingId !== null}
+                                  aria-label={`Toggle coupon ${c.couponCode}`}
+                                  className="sr-only peer"
+                                />
+
+                                <div
+                                  className="w-11 h-6 bg-gray-600 rounded-full
+                                    peer-checked:bg-green-500
+                                    after:content-['']
+                                    after:absolute
+                                    after:top-[2px]
+                                    after:left-[2px]
+                                    after:bg-white
+                                    after:border
+                                    after:rounded-full
+                                    after:h-5
+                                    after:w-5
+                                    after:transition-all
+                                    peer-checked:after:translate-x-full"
+                                />
+                              </label>
+                            )}
+
+                            {/* Edit only non-expired coupons */}
+                            {!isExpired && (
+                              <Link
+                                to={`/admin/coupons/edit/${c.id}`}
+                                className="px-3 py-1.5 bg-blue-500 text-white rounded"
+                              >
+                                Edit
+                              </Link>
+                            )}
+
+                            {isExpired && (
+                              <span className="text-gray-500 text-sm">
+                                Expired
+                              </span>
+                            )}
+
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
-
       </div>
-
     </div>
-
   );
 };
 

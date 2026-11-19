@@ -86,38 +86,6 @@ export const wishlistAPI = {
     apiClient.put(`/wishlist/toggleWishlist/${productId}`),
 };
 
-// export const couponAPI = {
-//   create: (data: any) =>
-//     apiClient.post("/coupon/createCoupon", data),
-
-//   update: (id: number, data: any) =>
-//     apiClient.put(`/coupon/updateCoupon/${id}`, data),
-
-//   getAll: (params?: any) =>
-//     apiClient.get("/coupon/all", { params }),
-
-//   getById: (id: number) =>
-//     apiClient.get(`/coupon/view/${id}`),
-
-//   delete: (id: number) =>
-//     apiClient.delete(`/coupon/delete/${id}`),
-
-//   getAllActiveCoupons: () =>
-//     apiClient.get("/user/coupons/active/all"),
-
-//   viewActiveCoupon: (id: number) =>
-//     apiClient.get(`/user/coupons/active/view/${id}`),
-
-//   // ✅ FIX: Apply coupon to cart — backend saves coupon on cart entity
-//   apply: (couponCode: string) =>
-//     apiClient.post("/user/coupon/apply", { couponCode }),
-
-//   // ✅ FIX: Remove coupon from cart — backend sets cart.coupon = null
-//   remove: () =>
-//     apiClient.delete("/user/coupon/remove"),
-// };
-
-
 export const couponAPI = {
   create: (data: any) =>
     apiClient.post("/coupon/createCoupon", data),
@@ -131,8 +99,8 @@ export const couponAPI = {
   getById: (id: number) =>
     apiClient.get(`/coupon/view/${id}`),
 
-  delete: (id: number) =>
-    apiClient.delete(`/coupon/delete/${id}`),
+  toggle: (id: number) =>
+  apiClient.patch(`/coupon/toggle/${id}`),
 
   getAllActiveCoupons: () =>
     apiClient.get("/user/coupons/active/all"),
