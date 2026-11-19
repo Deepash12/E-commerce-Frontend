@@ -578,8 +578,8 @@ const ProductDetailPage: React.FC = () => {
 
         setReviews(
           reviewResponse?.data?.content ??
-            reviewResponse?.content ??
-            (Array.isArray(reviewResponse) ? reviewResponse : [])
+          reviewResponse?.content ??
+          (Array.isArray(reviewResponse) ? reviewResponse : [])
         );
 
         const ratingRes = await reviewAPI.getRatingSummary(+id);
@@ -747,24 +747,43 @@ const ProductDetailPage: React.FC = () => {
             </h1>
 
             {/* Price */}
-            <div className="flex items-center gap-4 mb-6">
-              <span className="font-display text-4xl text-gold-400">
-                {formatPrice(product.price)}
-              </span>
 
-              <span
-                className={cn(
-                  "badge",
-                  product.stockQuantity > 0 ? "badge-green" : "badge-red"
+            {/* Price */}
+            <div className="mb-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-display text-4xl text-gold-400">
+                  {formatPrice(product.finalPrice ?? product.price)}
+                </span>
+
+                {product.finalPrice != null &&
+                  product.finalPrice < product.price && (
+                    <span className="text-lg text-obsidian-500 line-through">
+                      {formatPrice(product.price)}
+                    </span>
+                  )}
+
+                <span
+                  className={cn(
+                    "badge",
+                    product.stockQuantity > 0 ? "badge-green" : "badge-red"
+                  )}
+                >
+                  {product.stockQuantity > 0
+                    ? `${product.stockQuantity} in stock`
+                    : "Out of stock"}
+                </span>
+              </div>
+
+              {product.discountPrice != null &&
+                product.discountPrice > 0 && (
+                  <p className="mt-2 text-sm text-green-500">
+                    You save {formatPrice(product.discountPrice)}
+                  </p>
                 )}
-              >
-                {product.stockQuantity > 0
-                  ? `${product.stockQuantity} in stock`
-                  : "Out of stock"}
-              </span>
             </div>
 
             <div className="h-px bg-obsidian-800 mb-6" />
+
 
             {/* Description */}
             <p className="text-obsidian-400 leading-relaxed text-sm mb-8">
@@ -822,9 +841,8 @@ const ProductDetailPage: React.FC = () => {
                   </button>
 
                   <button
-                    className={`btn btn-outline btn-lg px-4 transition ${
-                      wishlisted ? "border-pink-500 text-pink-500" : ""
-                    }`}
+                    className={`btn btn-outline btn-lg px-4 transition ${wishlisted ? "border-pink-500 text-pink-500" : ""
+                      }`}
                     onClick={handleWishlist}
                   >
                     <Heart
@@ -883,13 +901,12 @@ const ProductDetailPage: React.FC = () => {
                       <div
                         className="h-2 bg-green-500 rounded"
                         style={{
-                          width: `${
-                            ratingSummary?.totalReviews
+                          width: `${ratingSummary?.totalReviews
                               ? ((ratingSummary.ratingBreakdown?.[star] || 0) /
-                                  ratingSummary.totalReviews) *
-                                100
+                                ratingSummary.totalReviews) *
+                              100
                               : 0
-                          }%`,
+                            }%`,
                         }}
                       />
                     </div>
