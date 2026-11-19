@@ -222,7 +222,7 @@ const WishlistCard: React.FC<{
             )}
           </div>
 
-          <button
+          {/* <button
             onClick={handleRemove}
             disabled={removing}
             style={{
@@ -248,7 +248,7 @@ const WishlistCard: React.FC<{
             title="Remove from wishlist"
           >
             <Heart size={13} fill="currentColor" />
-          </button>
+          </button> */}
         </div>
 
         <div
