@@ -86,6 +86,7 @@ export const wishlistAPI = {
     apiClient.put(`/wishlist/toggleWishlist/${productId}`),
 };
 
+
 export const couponAPI = {
   create: (data: any) =>
     apiClient.post("/coupon/createCoupon", data),
@@ -93,14 +94,21 @@ export const couponAPI = {
   update: (id: number, data: any) =>
     apiClient.put(`/coupon/updateCoupon/${id}`, data),
 
-  getAll: (params?: any) =>
+  getAll: (params?: {
+    pageNumber?: number;
+    pageSize?: number;
+    couponCode?: string;
+    couponType?: "FLAT" | "PERCENTAGE";
+    isActive?: boolean;
+    status?: string;
+  }) =>
     apiClient.get("/coupon/all", { params }),
 
   getById: (id: number) =>
     apiClient.get(`/coupon/view/${id}`),
 
   toggle: (id: number) =>
-  apiClient.patch(`/coupon/toggle/${id}`),
+    apiClient.patch(`/coupon/toggle/${id}`),
 
   getAllActiveCoupons: () =>
     apiClient.get("/user/coupons/active/all"),
@@ -108,13 +116,13 @@ export const couponAPI = {
   viewActiveCoupon: (id: number) =>
     apiClient.get(`/user/coupons/active/view/${id}`),
 
-  // ✅ FIX: Correct URLs matching your controller
   apply: (couponCode: string) =>
     apiClient.post("/user/coupons/apply", { couponCode }),
 
   remove: () =>
-  apiClient.delete("/cart/coupon"),
+    apiClient.delete("/user/coupons/applied/remove"),
 };
+
 
 export const reviewAPI = {
   create: (data: any) =>
