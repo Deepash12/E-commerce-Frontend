@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Heart, ShoppingBag, Star, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/utils";
 import toast from "react-hot-toast";
+import { wishlistAPI } from "@/api/service";
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 interface ProductCardProps {
@@ -17,17 +19,19 @@ export default function ProductCard({ product }: ProductCardProps) {
   const { addToCart } = useCart();
   const navigate = useNavigate();
 
-  const [adding, setAdding]       = useState(false);
+  const [adding, setAdding] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
-  const [hovered, setHovered]     = useState(false);
+  const [updatingWishlist, setUpdatingWishlist] = useState(false);
+  const [checkingWishlist, setCheckingWishlist] = useState(true);
+  const [hovered, setHovered] = useState(false);
 
-  const discountAmount  = product.discountPrice ?? product.discount ?? 0;
-  const hasDiscount     = discountAmount > 0;
-  const originalPrice   = product.price ?? product.oldPrice ?? 0;
-  const finalPrice      = hasDiscount ? originalPrice - discountAmount : originalPrice;
+  const discountAmount = product.discountPrice ?? product.discount ?? 0;
+  const hasDiscount = discountAmount > 0;
+  const originalPrice = product.price ?? product.oldPrice ?? 0;
+  const finalPrice = hasDiscount ? originalPrice - discountAmount : originalPrice;
   const discountPercent = hasDiscount ? Math.round((discountAmount / originalPrice) * 100) : 0;
-  const inStock         = (product.stockQuantity ?? 1) > 0;
-  const imageUrl        = product.productImageUrl
+  const inStock = (product.stockQuantity ?? 1) > 0;
+  const imageUrl = product.productImageUrl
     ? `${BASE_URL}${product.productImageUrl}`
     : product.image ?? null;
 
@@ -47,12 +51,86 @@ export default function ProductCard({ product }: ProductCardProps) {
     catch { toast.error("Failed"); }
   };
 
-  const toggleWishlist = (e: React.MouseEvent) => {
+
+  const toggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!user) { navigate("/login"); return; }
-    setWishlisted((w) => !w);
-    toast.success(wishlisted ? "Removed from wishlist" : "Added to wishlist");
+    e.stopPropagation();
+
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (updatingWishlist) return;
+
+    setUpdatingWishlist(true);
+
+    try {
+      await wishlistAPI.toggle(product.id);
+
+      const newStatus = !wishlisted;
+      setWishlisted(newStatus);
+
+      toast.success(
+        newStatus
+          ? "Added to wishlist"
+          : "Removed from wishlist"
+      );
+    } catch (error) {
+      console.error("Wishlist error:", error);
+      toast.error("Failed to update wishlist");
+    } finally {
+      setUpdatingWishlist(false);
+    }
   };
+
+
+  useEffect(() => {
+    if (!user || isAdmin) {
+      setWishlisted(false);
+      setCheckingWishlist(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingWishlist(true);
+
+    const checkWishlist = async () => {
+      try {
+        const res = await wishlistAPI.get(0, 20);
+
+        const responseData = res.data ?? res;
+
+        const data =
+          responseData?.data?.content ??
+          responseData?.content ??
+          [];
+
+        const exists = data.some(
+          (item: any) =>
+            Number(item.id) === Number(product.id) &&
+            item.isWishlist === true
+        );
+
+        if (!cancelled) {
+          setWishlisted(exists);
+        }
+      } catch (error) {
+        console.error("Failed to check wishlist:", error);
+      } finally {
+        if (!cancelled) {
+          setCheckingWishlist(false);
+        }
+      }
+    };
+
+    checkWishlist();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isAdmin, product.id]);
+
 
   return (
     <Link
@@ -183,7 +261,11 @@ export default function ProductCard({ product }: ProductCardProps) {
           {/* Wishlist button */}
           {!isAdmin && (
             <button
+
+              type="button"
               onClick={toggleWishlist}
+              disabled={updatingWishlist || checkingWishlist}
+              aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
               style={{
                 position: "absolute",
                 top: "10px",
