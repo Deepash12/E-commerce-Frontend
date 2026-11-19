@@ -13,17 +13,17 @@ const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, fetchCart } = useCart();
 
-  const [addresses, setAddresses]           = useState<Address[]>([]);
-  const [selectedId, setSelectedId]         = useState<number | null>(null);
-  const [loading, setLoading]               = useState(true);
-  const [placing, setPlacing]               = useState(false);
-  const [showForm, setShowForm]             = useState(false);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [placing, setPlacing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [removingCoupon, setRemovingCoupon] = useState(false);
-  const [couponInput, setCouponInput]       = useState("");
+  const [couponInput, setCouponInput] = useState("");
 
   // Local coupon state — apply API response se set hota hai
-  const [appliedDiscount, setAppliedDiscount]     = useState<number>(0);
+  const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
 
   // Flag: kya user ne is session mein coupon apply kiya?
@@ -38,7 +38,7 @@ const CheckoutPage: React.FC = () => {
   /* ── FETCH ADDRESSES ── */
   const fetchAddresses = async () => {
     try {
-      const res  = await addressAPI.view();
+      const res = await addressAPI.view();
       const list = res.data?.data ?? [];
       setAddresses(Array.isArray(list) ? list : []);
       const def = list.find((a: Address) => a.isDefault) ?? list[0];
@@ -133,18 +133,44 @@ const CheckoutPage: React.FC = () => {
   };
 
   /* ── PLACE ORDER ── */
+  // const handlePlaceOrder = async () => {
+  //   if (!selectedId) { toast.error("Please select a delivery address"); return; }
+
+  //   setPlacing(true);
+
   const handlePlaceOrder = async () => {
-    if (!selectedId) { toast.error("Please select a delivery address"); return; }
+    // Prevent order placement when cart is empty
+    if (!cart || !cart.items || cart.items.length === 0) {
+      toast.error("Your cart is empty. Please add products first.");
+      return;
+    }
+
+    // Prevent zero or negative amount orders
+    const payableAmount =
+      (cart.grandTotal ?? 0) - appliedDiscount;
+
+    if (payableAmount <= 0) {
+      toast.error("Invalid order amount");
+      return;
+    }
+
+    if (!selectedId) {
+      toast.error("Please select a delivery address");
+      return;
+    }
 
     setPlacing(true);
+
+
+
     try {
       const validCoupon = appliedCouponCode ?? cart?.appliedCouponCode ?? null;
-      const res         = await orderAPI.checkout(selectedId, validCoupon);
+      const res = await orderAPI.checkout(selectedId, validCoupon);
 
       toast.success("Order placed!");
 
       const checkout = res?.data?.data;
-      const amount   = checkout?.amount;
+      const amount = checkout?.amount;
 
       if (!amount) {
         toast.error("Invalid amount from server");
@@ -163,7 +189,7 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
-  const discount   = appliedDiscount;
+  const discount = appliedDiscount;
   const couponCode = appliedCouponCode;
   const grandTotal = cart?.grandTotal ?? 0;
   const finalTotal = grandTotal - discount;
@@ -324,13 +350,31 @@ const CheckoutPage: React.FC = () => {
               <div className="mb-5" />
             )}
 
-            <button
+            {/* <button
               className="btn btn-primary w-full"
               onClick={handlePlaceOrder}
               disabled={placing || !selectedId}
             >
               {placing ? "Placing Order..." : "Place Order"}
+            </button> */}
+
+
+            <button
+              className="btn btn-primary w-full"
+              onClick={handlePlaceOrder}
+              disabled={
+                placing ||
+                !selectedId ||
+                !cart ||
+                !cart.items ||
+                cart.items.length === 0 ||
+                finalTotal <= 0
+              }
+            >
+              {placing ? "Placing Order..." : "Place Order"}
             </button>
+
+
           </div>
 
         </div>
