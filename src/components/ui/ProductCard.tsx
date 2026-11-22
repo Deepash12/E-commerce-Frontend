@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Heart, ShoppingBag, Star, Zap } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -315,9 +314,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             <button
               type="button"
               onClick={toggleWishlist}
-              disabled={
-                updatingWishlist || checkingWishlist
-              }
+              disabled={updatingWishlist || checkingWishlist}
               aria-label={
                 wishlisted
                   ? `Remove ${product.name} from wishlist`
@@ -355,11 +352,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             >
               <Heart
                 size={13}
-                fill={
-                  wishlisted
-                    ? "currentColor"
-                    : "none"
-                }
+                fill={wishlisted ? "currentColor" : "none"}
                 aria-hidden="true"
               />
             </button>

@@ -15,7 +15,10 @@ const schema = yup.object({
   state: yup.string().required('State is required'),
   postalCode: yup.string().matches(/^\d{6}$/, 'Must be exactly 6 digits').required('Postal code required'),
   country: yup.string().required('Country is required'),
-  landmark: yup.string(),
+  landmark: yup
+    .string()
+    .trim()
+    .required('Landmark is required'),
   isDefault: yup.boolean().required(),
 }).required();
 
@@ -28,18 +31,18 @@ interface Props {
 const AddressForm: FC<Props> = ({ initialData, onSuccess, onCancel }) => {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<AddressRequest>({
     resolver: yupResolver(schema) as never,
-    defaultValues: initialData ??{ country: 'India', isDefault: false },
+    defaultValues: initialData ?? { country: 'India', isDefault: false },
   });
 
   const onSubmit = async (data: AddressRequest) => {
     try {
       if (initialData) {
-  await addressAPI.update(initialData.id, data);
-  toast.success('Address updated');
-} else {
-  await addressAPI.add(data);
-  toast.success('Address saved');
-}
+        await addressAPI.update(initialData.id, data);
+        toast.success('Address updated');
+      } else {
+        await addressAPI.add(data);
+        toast.success('Address saved');
+      }
       onSuccess();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -66,8 +69,13 @@ const AddressForm: FC<Props> = ({ initialData, onSuccess, onCancel }) => {
             <input className="input" placeholder="Street, Building, Area" {...register('addressLine1')} />
           </Field>
         </div>
-        <Field label="Landmark" error={errors.landmark?.message}>
-          <input className="input" placeholder="Near..." {...register('landmark')} />
+        <Field label="Landmark" error={errors.landmark?.message} required>
+          <input
+            className="input"
+            placeholder="e.g. Near City Hospital"
+            aria-invalid={!!errors.landmark}
+            {...register('landmark')}
+          />
         </Field>
         <Field label="City" error={errors.city?.message} required>
           <input className="input" placeholder="Mumbai" {...register('city')} />
