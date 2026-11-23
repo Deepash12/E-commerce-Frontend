@@ -30,7 +30,7 @@ export const productAPI = {
     apiClient.get('/products/view', { params }),
 };
 
-// Categories - BUG-004
+// Categories 
 export const categoryAPI = {
   getAll: (pageNumber = 0, pageSize = 100) =>
     apiClient.get('/category/view/all', {

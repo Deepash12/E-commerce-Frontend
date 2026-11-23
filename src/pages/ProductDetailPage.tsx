@@ -43,9 +43,8 @@ const getImageUrl = (url?: string | null) => {
     return cleanUrl;
   }
 
-  return `${BASE_URL}${
-    cleanUrl.startsWith("/") ? cleanUrl : `/${cleanUrl}`
-  }`;
+  return `${BASE_URL}${cleanUrl.startsWith("/") ? cleanUrl : `/${cleanUrl}`
+    }`;
 };
 
 const ProductDetailPage: React.FC = () => {
@@ -247,10 +246,10 @@ const ProductDetailPage: React.FC = () => {
         if (!cancelled) {
           setReviews(
             reviewResponse?.data?.content ??
-              reviewResponse?.content ??
-              (Array.isArray(reviewResponse)
-                ? reviewResponse
-                : [])
+            reviewResponse?.content ??
+            (Array.isArray(reviewResponse)
+              ? reviewResponse
+              : [])
           );
         }
 
@@ -373,9 +372,9 @@ const ProductDetailPage: React.FC = () => {
       setProduct((previousProduct) =>
         previousProduct
           ? {
-              ...previousProduct,
-              isWishlist: newStatus,
-            }
+            ...previousProduct,
+            isWishlist: newStatus,
+          }
           : previousProduct
       );
 
@@ -611,23 +610,20 @@ const ProductDetailPage: React.FC = () => {
                   {/* Wishlist */}
                   <button
                     type="button"
-                    className={`btn btn-outline btn-lg px-4 transition ${
-                      wishlisted
+                    className={`btn btn-outline btn-lg px-4 transition ${wishlisted
                         ? "border-pink-500 text-pink-500"
                         : ""
-                    }`}
+                      }`}
                     onClick={handleWishlist}
-                    disabled={
-                      checkingWishlist ||
-                      updatingWishlist ||
-                      wishlistError
-                    }
+                    disabled={checkingWishlist || wishlistError}
+                    aria-disabled={updatingWishlist}
+                    aria-busy={updatingWishlist}
                     aria-label={
                       checkingWishlist
                         ? "Checking wishlist"
                         : wishlisted
-                        ? "Remove from wishlist"
-                        : "Add to wishlist"
+                          ? "Remove from wishlist"
+                          : "Add to wishlist"
                     }
                     aria-pressed={wishlisted}
                     title={
@@ -716,16 +712,15 @@ const ProductDetailPage: React.FC = () => {
                       <div
                         className="h-2 bg-green-500 rounded"
                         style={{
-                          width: `${
-                            ratingSummary?.totalReviews
+                          width: `${ratingSummary?.totalReviews
                               ? ((ratingSummary
-                                  .ratingBreakdown?.[
-                                  star
-                                ] || 0) /
-                                  ratingSummary.totalReviews) *
-                                100
+                                .ratingBreakdown?.[
+                                star
+                              ] || 0) /
+                                ratingSummary.totalReviews) *
+                              100
                               : 0
-                          }%`,
+                            }%`,
                         }}
                       />
                     </div>
@@ -762,7 +757,7 @@ const ProductDetailPage: React.FC = () => {
                 )}
 
                 {(ratingSummary?.totalReviews ?? 0) >
-                0 ? (
+                  0 ? (
                   <button
                     onClick={() =>
                       navigate(

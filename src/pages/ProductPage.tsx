@@ -137,9 +137,8 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
   };
 
   return (
-    <Link
-      to={`/products/${product.id}`}
-      style={{ display: "block", height: "100%", textDecoration: "none" }}
+    <div
+      style={{ display: "block", height: "100%" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -164,6 +163,20 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
           transition: "all 0.38s cubic-bezier(0.34,1.56,0.64,1)",
         }}
       >
+
+        {/* Product detail link — separate from action buttons */}
+        <Link
+          to={`/products/${product.id}`}
+          aria-label={`View details for ${product.name}`}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            borderRadius: 16,
+          }}
+        />
+
+
         {/* Image */}
         <div
           style={{
@@ -418,7 +431,15 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
 
           {/* Action buttons */}
           {!isAdmin && (
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 10,
+                position: "relative",
+                zIndex: 2,
+              }}
+            >
               <button
                 onClick={handleAdd}
                 disabled={adding || !inStock}
@@ -494,7 +515,7 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
           }}
         />
       </div>
-    </Link>
+    </div>
   );
 };
 
