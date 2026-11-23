@@ -629,6 +629,7 @@ const ProductDetailPage: React.FC = () => {
                         ? "Remove from wishlist"
                         : "Add to wishlist"
                     }
+                    aria-pressed={wishlisted}
                     title={
                       wishlistError
                         ? "Unable to load wishlist. Refresh to retry."
@@ -642,6 +643,7 @@ const ProductDetailPage: React.FC = () => {
                           ? "currentColor"
                           : "none"
                       }
+                      aria-hidden="true"
                     />
                   </button>
 
