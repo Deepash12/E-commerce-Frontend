@@ -16,7 +16,7 @@ const AddressesPage: React.FC = () => {
   const fetchAddresses = async () => {
     try {
       const res = await addressAPI.view();
-      setAddresses(res.data.data ?? []);   // 🔥 THIS IS THE FIX
+      setAddresses(res.data.data ?? []);   
     } catch {
       toast.error('Failed to load addresses');
     } finally {
