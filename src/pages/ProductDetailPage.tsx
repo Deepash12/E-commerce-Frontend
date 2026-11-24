@@ -71,6 +71,18 @@ const ProductDetailPage: React.FC = () => {
 
   const isAdmin = user?.role === "ADMIN";
 
+  const isProductAvailable =
+    product?.isActive === true &&
+    product.stockQuantity > 0;
+
+
+  const canPurchase =
+    isProductAvailable &&
+    Number.isInteger(qty) &&
+    qty > 0 &&
+    qty <= (product?.stockQuantity ?? 0);
+
+
   const [reviews, setReviews] = useState<Review[]>([]);
   const [ratingSummary, setRatingSummary] =
     useState<RatingSummary | null>(null);
@@ -79,9 +91,6 @@ const ProductDetailPage: React.FC = () => {
   const [rating, setRating] = useState(5);
   const [loadingReviews, setLoadingReviews] = useState(false);
 
-  // --------------------------------------------
-  // FETCH PRODUCT DETAILS
-  // --------------------------------------------
 
   useEffect(() => {
     if (!id) {
@@ -125,10 +134,6 @@ const ProductDetailPage: React.FC = () => {
     };
   }, [id]);
 
-  // --------------------------------------------
-  // FETCH WISHLIST STATUS FROM BACKEND
-  // --------------------------------------------
-
   useEffect(() => {
     if (!id || !user || isAdmin) {
       setWishlisted(false);
@@ -149,9 +154,6 @@ const ProductDetailPage: React.FC = () => {
         let found = false;
         let hasMorePages = true;
 
-        // Fetch paginated wishlist data.
-        // Stop once the product is found or all pages
-        // have been checked.
         while (hasMorePages && !found) {
           const response = await wishlistAPI.get(page, 20);
 
@@ -225,10 +227,6 @@ const ProductDetailPage: React.FC = () => {
     };
   }, [id, user, isAdmin]);
 
-  // --------------------------------------------
-  // FETCH REVIEWS AND RATING SUMMARY
-  // --------------------------------------------
-
   useEffect(() => {
     if (!id) return;
 
@@ -283,18 +281,19 @@ const ProductDetailPage: React.FC = () => {
     };
   }, [id]);
 
-  // --------------------------------------------
-  // ADD TO CART
-  // --------------------------------------------
-
   const handleAdd = async () => {
+    if (!product || adding) return;
+
+    if (!canPurchase) {
+      toast.error("Product is unavailable for purchase");
+      return;
+    }
+
     if (!user) {
       toast.error("Please sign in");
       navigate("/login");
       return;
     }
-
-    if (!product || adding) return;
 
     setAdding(true);
 
@@ -309,18 +308,22 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
-  // --------------------------------------------
-  // BUY NOW
-  // --------------------------------------------
 
   const handleBuyNow = async () => {
+    if (!product || adding) return;
+
+    if (!canPurchase) {
+      toast.error("Product is unavailable for purchase");
+      return;
+    }
+
     if (!user) {
       toast.error("Please sign in");
       navigate("/login");
       return;
     }
 
-    if (!product) return;
+    setAdding(true);
 
     try {
       await addToCart(product.id, qty);
@@ -329,12 +332,10 @@ const ProductDetailPage: React.FC = () => {
     } catch (error) {
       console.error("Buy now error:", error);
       toast.error("Failed to process");
+    } finally {
+      setAdding(false);
     }
   };
-
-  // --------------------------------------------
-  // WISHLIST ADD / REMOVE
-  // --------------------------------------------
 
   const handleWishlist = async () => {
     if (!user) {
@@ -392,10 +393,6 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
-  // --------------------------------------------
-  // DELETE PRODUCT (ADMIN)
-  // --------------------------------------------
-
   const handleDelete = async () => {
     if (!product) return;
 
@@ -418,10 +415,6 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
-  // --------------------------------------------
-  // LOADING AND NOT FOUND
-  // --------------------------------------------
-
   if (loading) {
     return <LoadingPage />;
   }
@@ -440,14 +433,10 @@ const ProductDetailPage: React.FC = () => {
     product.productImageUrl
   );
 
-  // --------------------------------------------
-  // PAGE UI
-  // --------------------------------------------
-
   return (
     <div>
       <div className="container-wide py-2">
-        {/* Back Button */}
+
         <button
           onClick={() => navigate(-1)}
           className="btn btn-ghost px-0 mb-8 gap-2 text-obsidian-400"
@@ -457,7 +446,7 @@ const ProductDetailPage: React.FC = () => {
         </button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20 items-start animate-fade-up">
-          {/* Product Image */}
+
           <div className="aspect-square bg-obsidian-900 border border-obsidian-800 rounded-lg overflow-hidden flex items-center justify-center">
             {productImageSrc && !imageError ? (
               <img
@@ -475,7 +464,6 @@ const ProductDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* Product Information */}
           <div>
             {product.categoryName && (
               <p className="text-[10px] tracking-[0.15em] uppercase text-gold-500 mb-3">
@@ -487,7 +475,6 @@ const ProductDetailPage: React.FC = () => {
               {product.name}
             </h1>
 
-            {/* Price */}
             <div className="mb-6">
               <div className="flex flex-wrap items-center gap-4">
                 <span className="font-display text-4xl text-gold-400">
@@ -506,14 +493,16 @@ const ProductDetailPage: React.FC = () => {
                 <span
                   className={cn(
                     "badge",
-                    product.stockQuantity > 0
+                    isProductAvailable
                       ? "badge-green"
                       : "badge-red"
                   )}
                 >
-                  {product.stockQuantity > 0
-                    ? `${product.stockQuantity} in stock`
-                    : "Out of stock"}
+                  {product.isActive !== true
+                    ? "Unavailable"
+                    : product.stockQuantity > 0
+                      ? `${product.stockQuantity} in stock`
+                      : "Out of stock"}
                 </span>
               </div>
 
@@ -528,13 +517,11 @@ const ProductDetailPage: React.FC = () => {
 
             <div className="h-px bg-obsidian-800 mb-6" />
 
-            {/* Description */}
             <p className="text-obsidian-400 leading-relaxed text-sm mb-8">
               {product.description}
             </p>
 
-            {/* Quantity */}
-            {!isAdmin && product.stockQuantity > 0 && (
+            {!isAdmin && isProductAvailable && (
               <div className="mb-7">
                 <p className="label mb-2">
                   Quantity
@@ -577,42 +564,33 @@ const ProductDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* Action Buttons */}
             <div className="flex flex-col gap-3 mb-8">
               {!isAdmin && (
                 <>
-                  {/* Add to Cart */}
+
                   <button
                     className="btn btn-primary btn-lg w-full gap-3"
                     onClick={handleAdd}
-                    disabled={
-                      adding ||
-                      product.stockQuantity === 0
-                    }
+                    disabled={adding || !canPurchase}
                   >
                     <ShoppingBag size={16} />
-                    {adding
-                      ? "Adding..."
-                      : "Add to Cart"}
+
+                    {adding ? "Processing..." : "Add to Cart"}
                   </button>
 
-                  {/* Buy Now */}
                   <button
                     onClick={handleBuyNow}
                     className="btn btn-outline btn-lg w-full"
-                    disabled={
-                      product.stockQuantity === 0
-                    }
+                    disabled={adding || !canPurchase}
                   >
                     Buy Now
                   </button>
 
-                  {/* Wishlist */}
                   <button
                     type="button"
                     className={`btn btn-outline btn-lg px-4 transition ${wishlisted
-                        ? "border-pink-500 text-pink-500"
-                        : ""
+                      ? "border-pink-500 text-pink-500"
+                      : ""
                       }`}
                     onClick={handleWishlist}
                     disabled={checkingWishlist || wishlistError}
@@ -652,7 +630,6 @@ const ProductDetailPage: React.FC = () => {
                 </>
               )}
 
-              {/* Admin Actions */}
               {isAdmin && (
                 <>
                   <Link
@@ -674,15 +651,14 @@ const ProductDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Delivery Information */}
             <div className="flex items-center gap-2 text-obsidian-600 text-xs">
               <Package size={13} />
               Free delivery on orders over ₹499
             </div>
 
-            {/* Ratings and Reviews */}
+
             <div className="mt-10 grid md:grid-cols-2 gap-8">
-              {/* Rating Summary */}
+
               <div>
                 <h2 className="text-lg mb-3">
                   Ratings & Reviews
@@ -713,13 +689,13 @@ const ProductDetailPage: React.FC = () => {
                         className="h-2 bg-green-500 rounded"
                         style={{
                           width: `${ratingSummary?.totalReviews
-                              ? ((ratingSummary
-                                .ratingBreakdown?.[
-                                star
-                              ] || 0) /
-                                ratingSummary.totalReviews) *
-                              100
-                              : 0
+                            ? ((ratingSummary
+                              .ratingBreakdown?.[
+                              star
+                            ] || 0) /
+                              ratingSummary.totalReviews) *
+                            100
+                            : 0
                             }%`,
                         }}
                       />
@@ -733,7 +709,6 @@ const ProductDetailPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Top Reviews */}
               <div>
                 {loadingReviews ? (
                   <p className="text-sm text-obsidian-500">
@@ -777,7 +752,6 @@ const ProductDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Existing Review Form State */}
             <div style={{ display: "none" }}>
               <textarea
                 value={reviewText}
