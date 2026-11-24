@@ -1,5 +1,6 @@
 
 import React, { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { couponAPI } from "@/api/service";
 import toast from "react-hot-toast";
 
@@ -76,14 +77,19 @@ const statusColor = (status: CouponStatus): string => {
   switch (status) {
     case "ACTIVE":
       return "text-green-400";
+
     case "INACTIVE":
       return "text-red-400";
+
     case "NOT_YET_STARTED":
       return "text-blue-400";
+
     case "EXPIRED":
       return "text-yellow-400";
+
     case "USAGE_LIMIT_REACHED":
       return "text-orange-400";
+
     default:
       return "text-gray-400";
   }
@@ -94,9 +100,12 @@ const AddCouponPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [error, setError] = useState(false);
 
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -106,27 +115,47 @@ const AddCouponPage: React.FC = () => {
 
   const fetchCoupons = useCallback(async () => {
     setLoading(true);
+    setError(false);
 
     try {
       const response = await couponAPI.getAll({
         pageNumber: page,
-        pageSize: 12,
+        pageSize: pageSize,
       });
 
-      setCoupons(response.data.content ?? []);
-      setTotalPages(response.data.totalPages ?? 1);
+      const data = response.data;
+      const pages = data.totalPages ?? 0;
+
+      setTotalPages(pages);
+      setTotalElements(data.totalElements ?? 0);
+
+      if (page > 0 && page >= pages) {
+        setCoupons([]);
+        setPage(Math.max(0, pages - 1));
+        return;
+      }
+
+      setCoupons(data.content ?? []);
+
     } catch (error) {
       console.error("Failed to load coupons", error);
+
+      setError(true);
+      setCoupons([]);
+
       toast.error("Failed to load coupons");
+
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, pageSize]);
 
+  // Reload coupons whenever page or page size changes
   useEffect(() => {
     fetchCoupons();
   }, [fetchCoupons]);
 
+  // Update form fields
   const setField = <K extends keyof CouponForm>(
     key: K,
     value: CouponForm[K]
@@ -137,6 +166,7 @@ const AddCouponPage: React.FC = () => {
     }));
   };
 
+  // Validate coupon form
   const validateForm = (): boolean => {
     if (
       !form.couponCode.trim() ||
@@ -176,7 +206,10 @@ const AddCouponPage: React.FC = () => {
       return false;
     }
 
-    if (form.couponType === "PERCENTAGE" && discount > 100) {
+    if (
+      form.couponType === "PERCENTAGE" &&
+      discount > 100
+    ) {
       toast.error("Percentage discount cannot exceed 100");
       return false;
     }
@@ -191,17 +224,23 @@ const AddCouponPage: React.FC = () => {
       return false;
     }
 
+    const validFromTime = new Date(form.validFrom).getTime();
+    const expiryTime = new Date(form.expiryAt).getTime();
+
     if (
-      new Date(form.expiryAt).getTime() <=
-      new Date(form.validFrom).getTime()
+      !Number.isFinite(validFromTime) ||
+      !Number.isFinite(expiryTime)
     ) {
+      toast.error("Please enter valid dates");
+      return false;
+    }
+
+    if (expiryTime <= validFromTime) {
       toast.error("Expiry must be after Valid From");
       return false;
     }
 
-    if (
-      new Date(form.expiryAt).getTime() <= Date.now()
-    ) {
+    if (expiryTime <= Date.now()) {
       toast.error("Expiry must be in the future");
       return false;
     }
@@ -209,8 +248,16 @@ const AddCouponPage: React.FC = () => {
     return true;
   };
 
+  // Create new coupon
   const handleCreate = async () => {
-    if (saving || !validateForm()) return;
+    if (
+      saving ||
+      loading ||
+      updatingId !== null ||
+      !validateForm()
+    ) {
+      return;
+    }
 
     setSaving(true);
 
@@ -235,23 +282,39 @@ const AddCouponPage: React.FC = () => {
 
       toast.success("Coupon created successfully");
 
+      // Reset form
       setForm(emptyForm);
       setShowForm(false);
 
+      // Clear filters after successful creation
+      setSearch("");
+      setFilterStatus("ALL");
+
+      // Return to first page
       if (page !== 0) {
         setPage(0);
       } else {
         await fetchCoupons();
       }
+
     } catch (error) {
+      console.error("Failed to create coupon", error);
       toast.error(getErrorMessage(error));
+
     } finally {
       setSaving(false);
     }
   };
 
+  // Enable / Disable coupon
   const handleToggle = async (coupon: Coupon) => {
-    if (updatingId !== null) return;
+    if (
+      updatingId !== null ||
+      loading ||
+      saving
+    ) {
+      return;
+    }
 
     const expired =
       new Date(coupon.expiryAt).getTime() <= Date.now();
@@ -272,18 +335,23 @@ const AddCouponPage: React.FC = () => {
           : "Coupon status updated successfully"
       );
 
+      // Reload current page
       await fetchCoupons();
+
     } catch (error) {
+      console.error("Failed to update coupon status", error);
       toast.error(getErrorMessage(error));
+
     } finally {
       setUpdatingId(null);
     }
   };
 
+  // Search and filter coupons on current page
   const filteredCoupons = coupons.filter((coupon) => {
     const matchesSearch = coupon.couponCode
       .toLowerCase()
-      .includes(search.toLowerCase());
+      .includes(search.trim().toLowerCase());
 
     const matchesStatus =
       filterStatus === "ALL" ||
@@ -292,47 +360,101 @@ const AddCouponPage: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // Pagination controls
+  const paginationDisabled =
+    loading ||
+    saving ||
+    updatingId !== null;
+
+  const firstRecord =
+    totalElements === 0
+      ? 0
+      : page * pageSize + 1;
+
+  const lastRecord = Math.min(
+    (page + 1) * pageSize,
+    totalElements
+  );
+
   const inputClass = "input w-full";
 
   return (
     <div className="container-wide py-16">
-      <div className="flex justify-between items-center mb-8">
+
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
+
         <div>
-          <h1 className="page-title">Manage Coupons</h1>
+          <h1 className="page-title">
+            Manage Coupons
+          </h1>
+
           <p className="text-obsidian-500 mt-2">
             Create and manage discount coupons
           </p>
+
+          {!loading && !error && (
+            <p className="text-sm text-gray-400 mt-2">
+              Total Coupons: {totalElements}
+            </p>
+          )}
         </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm ? "Close Form" : "Create Coupon"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+
+          <Link
+            to="/admin/coupons"
+            className="btn btn-outline"
+          >
+            Back to Coupons
+          </Link>
+
+          <button
+            className="btn btn-primary"
+            disabled={saving}
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm ? "Close Form" : "Create Coupon"}
+          </button>
+
+        </div>
       </div>
 
+      {/* Create Coupon Form */}
       {showForm && (
         <div className="card p-6 mb-8">
+
           <h2 className="text-xl font-semibold mb-6">
             Create New Coupon
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Coupon Code */}
             <div>
-              <label className="text-sm">Coupon Code</label>
+              <label className="text-sm">
+                Coupon Code
+              </label>
+
               <input
                 className={inputClass}
                 value={form.couponCode}
                 onChange={(e) =>
-                  setField("couponCode", e.target.value.toUpperCase())
+                  setField(
+                    "couponCode",
+                    e.target.value.toUpperCase()
+                  )
                 }
                 placeholder="WELCOME50"
               />
             </div>
 
+            {/* Coupon Type */}
             <div>
-              <label className="text-sm">Coupon Type</label>
+              <label className="text-sm">
+                Coupon Type
+              </label>
+
               <select
                 className={inputClass}
                 value={form.couponType}
@@ -344,12 +466,18 @@ const AddCouponPage: React.FC = () => {
                 }
               >
                 <option value="FLAT">FLAT</option>
-                <option value="PERCENTAGE">PERCENTAGE</option>
+                <option value="PERCENTAGE">
+                  PERCENTAGE
+                </option>
               </select>
             </div>
 
+            {/* Description */}
             <div className="md:col-span-2">
-              <label className="text-sm">Description</label>
+              <label className="text-sm">
+                Description
+              </label>
+
               <input
                 className={inputClass}
                 value={form.description}
@@ -359,8 +487,12 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Minimum Order Amount */}
             <div>
-              <label className="text-sm">Minimum Order Amount</label>
+              <label className="text-sm">
+                Minimum Order Amount
+              </label>
+
               <input
                 type="number"
                 min="0.01"
@@ -373,6 +505,7 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Discount Amount */}
             <div>
               <label className="text-sm">
                 Discount Amount
@@ -380,6 +513,7 @@ const AddCouponPage: React.FC = () => {
                   ? " (%)"
                   : " (₹)"}
               </label>
+
               <input
                 type="number"
                 min="0.01"
@@ -392,10 +526,12 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Maximum Discount Amount */}
             <div>
               <label className="text-sm">
                 Maximum Discount Amount (₹)
               </label>
+
               <input
                 type="number"
                 min="0.01"
@@ -411,8 +547,12 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Per User Limit */}
             <div>
-              <label className="text-sm">Per User Limit</label>
+              <label className="text-sm">
+                Per User Limit
+              </label>
+
               <input
                 type="number"
                 min="1"
@@ -425,8 +565,12 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Global Usage Limit */}
             <div>
-              <label className="text-sm">Global Usage Limit</label>
+              <label className="text-sm">
+                Global Usage Limit
+              </label>
+
               <input
                 type="number"
                 min="1"
@@ -434,13 +578,20 @@ const AddCouponPage: React.FC = () => {
                 className={inputClass}
                 value={form.globalUsageLimit}
                 onChange={(e) =>
-                  setField("globalUsageLimit", e.target.value)
+                  setField(
+                    "globalUsageLimit",
+                    e.target.value
+                  )
                 }
               />
             </div>
 
+            {/* Valid From */}
             <div>
-              <label className="text-sm">Valid From</label>
+              <label className="text-sm">
+                Valid From
+              </label>
+
               <input
                 type="datetime-local"
                 className={inputClass}
@@ -451,8 +602,12 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Expiry At */}
             <div>
-              <label className="text-sm">Expiry At</label>
+              <label className="text-sm">
+                Expiry At
+              </label>
+
               <input
                 type="datetime-local"
                 className={inputClass}
@@ -463,7 +618,9 @@ const AddCouponPage: React.FC = () => {
               />
             </div>
 
+            {/* Enable Coupon */}
             <label className="flex items-center gap-3 md:col-span-2">
+
               <input
                 type="checkbox"
                 checked={form.isActive}
@@ -471,63 +628,148 @@ const AddCouponPage: React.FC = () => {
                   setField("isActive", e.target.checked)
                 }
               />
+
               Enable Coupon
+
             </label>
+
           </div>
 
+          {/* Submit Button */}
           <button
-            className="btn btn-primary w-full mt-6"
+            className="btn btn-primary w-full mt-6 disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={handleCreate}
-            disabled={saving}
+            disabled={paginationDisabled}
           >
             {saving ? "Creating..." : "Create Coupon"}
           </button>
+
         </div>
       )}
 
+      {/* Search and Filter */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
+
         <input
           className="input flex-1"
           placeholder="Search coupon code on current page"
+          aria-label="Search coupons on current page"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
 
         <select
           className="input"
+          aria-label="Filter current page by coupon status"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
         >
-          <option value="ALL">All Statuses</option>
-          <option value="ACTIVE">Active</option>
-          <option value="INACTIVE">Inactive</option>
-          <option value="NOT_YET_STARTED">Scheduled</option>
-          <option value="EXPIRED">Expired</option>
+          <option value="ALL">
+            All Statuses
+          </option>
+
+          <option value="ACTIVE">
+            Active
+          </option>
+
+          <option value="INACTIVE">
+            Inactive
+          </option>
+
+          <option value="NOT_YET_STARTED">
+            Scheduled
+          </option>
+
+          <option value="EXPIRED">
+            Expired
+          </option>
+
           <option value="USAGE_LIMIT_REACHED">
             Usage Limit Reached
           </option>
+
         </select>
+
+        {(search || filterStatus !== "ALL") && (
+          <button
+            className="btn btn-outline"
+            onClick={() => {
+              setSearch("");
+              setFilterStatus("ALL");
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
+
       </div>
 
+      {/* Coupon Table */}
       <div className="card p-6 overflow-x-auto">
+
         {loading ? (
-          <p className="text-center py-8">Loading coupons...</p>
+          <p className="text-center py-8">
+            Loading coupons...
+          </p>
+        ) : error ? (
+          <div className="text-center py-8">
+
+            <p className="text-red-400 mb-4">
+              Failed to load coupons
+            </p>
+
+            <button
+              className="btn btn-outline"
+              onClick={fetchCoupons}
+              disabled={paginationDisabled}
+            >
+              Retry
+            </button>
+
+          </div>
         ) : (
           <table className="w-full min-w-[1050px] text-left">
+
             <thead>
               <tr className="border-b border-gray-700">
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Discount</th>
-                <th className="px-4 py-3">Min Order</th>
-                <th className="px-4 py-3">Max Discount</th>
-                <th className="px-4 py-3">Expiry</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Actions</th>
+
+                <th className="px-4 py-3">
+                  Code
+                </th>
+
+                <th className="px-4 py-3">
+                  Type
+                </th>
+
+                <th className="px-4 py-3">
+                  Discount
+                </th>
+
+                <th className="px-4 py-3">
+                  Min Order
+                </th>
+
+                <th className="px-4 py-3">
+                  Max Discount
+                </th>
+
+                <th className="px-4 py-3">
+                  Expiry
+                </th>
+
+                <th className="px-4 py-3">
+                  Status
+                </th>
+
+                <th className="px-4 py-3">
+                  Actions
+                </th>
+
               </tr>
             </thead>
 
             <tbody>
+
               {filteredCoupons.map((coupon) => {
                 const expired =
                   new Date(coupon.expiryAt).getTime() <=
@@ -536,59 +778,79 @@ const AddCouponPage: React.FC = () => {
                 return (
                   <tr
                     key={coupon.id}
-                    className="border-b border-gray-800"
+                    className="border-b border-gray-800 hover:bg-gray-900 transition"
                   >
-                    <td className="px-4 py-4">
-                      <a
-                        href={`/admin/coupons/view/${coupon.id}`}
+
+                    {/* Coupon Code */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+
+                      <Link
+                        to={`/admin/coupons/view/${coupon.id}`}
                         className="text-yellow-400 hover:underline"
                       >
                         {coupon.couponCode}
-                      </a>
+                      </Link>
+
                     </td>
 
-                    <td className="px-4 py-4">
+                    {/* Coupon Type */}
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {coupon.couponType}
                     </td>
 
-                    <td className="px-4 py-4">
+                    {/* Discount */}
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {coupon.couponType === "PERCENTAGE"
                         ? `${coupon.discountAmount}%`
                         : `₹${coupon.discountAmount}`}
                     </td>
 
-                    <td className="px-4 py-4">
+                    {/* Minimum Order */}
+                    <td className="px-4 py-4 whitespace-nowrap">
                       ₹{coupon.minOrderAmount}
                     </td>
 
-                    <td className="px-4 py-4">
+                    {/* Maximum Discount */}
+                    <td className="px-4 py-4 whitespace-nowrap">
                       ₹{coupon.maximumDiscountAmount}
                     </td>
 
-                    <td className="px-4 py-4">
+                    {/* Expiry */}
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {new Date(
                         coupon.expiryAt
                       ).toLocaleDateString()}
                     </td>
 
-                    <td className="px-4 py-4">
+                    {/* Coupon Status */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+
                       <span
                         className={`font-semibold ${statusColor(
                           coupon.calculatedStatus
                         )}`}
                       >
-                        {statusLabel(coupon.calculatedStatus)}
+                        {statusLabel(
+                          coupon.calculatedStatus
+                        )}
                       </span>
+
                     </td>
 
+                    {/* Coupon Actions */}
                     <td className="px-4 py-4">
+
                       <div className="flex items-center gap-3">
+
                         {!expired ? (
                           <>
+
                             <button
-                              className="btn btn-outline"
-                              disabled={updatingId !== null}
-                              onClick={() => handleToggle(coupon)}
+                              className="btn btn-outline disabled:opacity-40 disabled:cursor-not-allowed"
+                              disabled={paginationDisabled}
+                              onClick={() =>
+                                handleToggle(coupon)
+                              }
                             >
                               {updatingId === coupon.id
                                 ? "Updating..."
@@ -597,60 +859,145 @@ const AddCouponPage: React.FC = () => {
                                 : "Enable"}
                             </button>
 
-                            <a
-                              href={`/admin/coupons/edit/${coupon.id}`}
+                            <Link
+                              to={`/admin/coupons/edit/${coupon.id}`}
                               className="btn btn-primary"
                             >
                               Edit
-                            </a>
+                            </Link>
+
                           </>
                         ) : (
                           <span className="text-gray-500">
                             Expired
                           </span>
                         )}
+
                       </div>
+
                     </td>
+
                   </tr>
                 );
               })}
 
+              {/* Empty State */}
               {filteredCoupons.length === 0 && (
                 <tr>
                   <td
                     colSpan={8}
                     className="text-center py-8 text-gray-400"
                   >
-                    No coupons found
+                    {search || filterStatus !== "ALL"
+                      ? "No matching coupons on this page"
+                      : "No coupons found"}
                   </td>
                 </tr>
               )}
+
             </tbody>
+
           </table>
         )}
+
       </div>
 
-      <div className="flex items-center justify-center gap-4 mt-6">
-        <button
-          className="btn btn-outline"
-          disabled={page === 0 || loading}
-          onClick={() => setPage((p) => Math.max(0, p - 1))}
-        >
-          Previous
-        </button>
+      {/* Pagination */}
+      {!error && (
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-4 mt-6">
 
-        <span>
-          Page {page + 1} of {Math.max(totalPages, 1)}
-        </span>
+          {/* Total Records */}
+          <div>
 
-        <button
-          className="btn btn-outline"
-          disabled={page + 1 >= totalPages || loading}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </button>
-      </div>
+            <p className="text-sm text-gray-400">
+              {loading
+                ? "Loading records..."
+                : `Showing ${firstRecord} - ${lastRecord} of ${totalElements} coupons`}
+            </p>
+
+            {!loading &&
+              (search || filterStatus !== "ALL") && (
+                <p className="text-xs text-gray-400 mt-1">
+                  {filteredCoupons.length} matching coupons
+                  on this page
+                </p>
+              )}
+
+          </div>
+
+          {/* Rows Per Page */}
+          <div className="flex items-center gap-3">
+
+            <label
+              htmlFor="add-coupon-page-size"
+              className="text-sm text-gray-400 whitespace-nowrap"
+            >
+              Rows per page:
+            </label>
+
+            <select
+              id="add-coupon-page-size"
+              className="input w-20"
+              value={pageSize}
+              disabled={paginationDisabled}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(0);
+              }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+
+          </div>
+
+          {/* Page Navigation */}
+          <div className="flex items-center gap-4">
+
+            {/* Previous Button */}
+            <button
+              className="btn btn-outline disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={
+                page === 0 ||
+                paginationDisabled
+              }
+              onClick={() =>
+                setPage((previous) =>
+                  Math.max(0, previous - 1)
+                )
+              }
+            >
+              Previous
+            </button>
+
+            {/* Current Page */}
+            <span className="text-sm whitespace-nowrap">
+              Page {page + 1} of {Math.max(totalPages, 1)}
+            </span>
+
+            {/* Next Button */}
+            <button
+              className="btn btn-outline disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={
+                page + 1 >= totalPages ||
+                paginationDisabled
+              }
+              onClick={() =>
+                setPage((previous) =>
+                  Math.min(previous + 1, totalPages - 1)
+                )
+              }
+            >
+              Next
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };

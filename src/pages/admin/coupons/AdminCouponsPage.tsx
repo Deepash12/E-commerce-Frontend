@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { couponAPI } from "@/api/service";
 import toast from "react-hot-toast";
@@ -20,27 +20,57 @@ const AdminCouponsPage: React.FC = () => {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [error, setError] = useState(false);
 
-  // Fetch all coupons
-  const fetchCoupons = async () => {
+  // Pagination states
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(5);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+
+  // Fetch coupons with pagination
+  const fetchCoupons = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+
     try {
       const res = await couponAPI.getAll({
-        pageNumber: 0,
-        pageSize: 5,
+        pageNumber: page,
+        pageSize: pageSize,
       });
 
-      setCoupons(res.data.content ?? []);
+      const data = res.data;
+      const pages = data.totalPages ?? 0;
+
+      setTotalPages(pages);
+      setTotalElements(data.totalElements ?? 0);
+
+      // Handle invalid page if total records decrease
+      if (page > 0 && page >= pages) {
+        setPage(Math.max(0, pages - 1));
+        return;
+      }
+
+      setCoupons(data.content ?? []);
+
     } catch (error) {
       console.error("Failed to fetch coupons", error);
+      setError(true);
+      setCoupons([]);
       toast.error("Failed to load coupons");
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize]);
+
+  // Fetch coupons whenever pagination changes
+  useEffect(() => {
+    fetchCoupons();
+  }, [fetchCoupons]);
 
   // Enable / Disable coupon
   const toggleCouponStatus = async (id: number) => {
-    if (updatingId !== null) return;
+    if (updatingId !== null || loading) return;
 
     setUpdatingId(id);
 
@@ -53,8 +83,9 @@ const AdminCouponsPage: React.FC = () => {
           : "Coupon status updated successfully"
       );
 
-      // Reload coupons after successful toggle
+      // Reload current page
       await fetchCoupons();
+
     } catch (error: any) {
       console.error("Failed to update coupon status", error);
 
@@ -71,10 +102,6 @@ const AdminCouponsPage: React.FC = () => {
       setUpdatingId(null);
     }
   };
-
-  useEffect(() => {
-    fetchCoupons();
-  }, []);
 
   // Status text
   const getStatusLabel = (status: string) => {
@@ -108,15 +135,35 @@ const AdminCouponsPage: React.FC = () => {
     }
   };
 
+  // Pagination controls
+  const paginationDisabled =
+    loading || updatingId !== null;
+
+  const firstRecord =
+    totalElements === 0 ? 0 : page * pageSize + 1;
+
+  const lastRecord = Math.min(
+    (page + 1) * pageSize,
+    totalElements
+  );
+
   return (
     <div className="flex justify-center pt-28 pb-16">
       <div className="w-full max-w-6xl px-4">
 
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">
-            Manage Coupons
-          </h1>
+          <div>
+            <h1 className="text-2xl font-semibold">
+              Manage Coupons
+            </h1>
+
+            <p className="text-sm text-gray-400 mt-2">
+              {error || loading
+                ? "Manage your discount coupons"
+                : `Total Coupons: ${totalElements}`}
+            </p>
+          </div>
 
           <Link
             to="/admin/coupons/add"
@@ -126,12 +173,26 @@ const AdminCouponsPage: React.FC = () => {
           </Link>
         </div>
 
+        {/* Coupon Table */}
         <div className="card p-6 overflow-x-auto">
 
           {loading ? (
             <p className="text-center py-8">
               Loading coupons...
             </p>
+          ) : error ? (
+            <div className="text-center py-8">
+              <p className="text-red-400 mb-4">
+                Failed to load coupons
+              </p>
+
+              <button
+                className="btn btn-outline"
+                onClick={fetchCoupons}
+              >
+                Retry
+              </button>
+            </div>
           ) : (
             <table className="w-full min-w-[1050px] text-left">
 
@@ -160,7 +221,7 @@ const AdminCouponsPage: React.FC = () => {
                   </tr>
                 ) : (
                   coupons.map((c) => {
-                    // Actual expiry check
+
                     const isExpired =
                       new Date(c.expiryAt).getTime() <= Date.now();
 
@@ -187,17 +248,19 @@ const AdminCouponsPage: React.FC = () => {
 
                         {/* Discount */}
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {c.discountAmount}
+                          {c.couponType === "PERCENTAGE"
+                            ? `${c.discountAmount}%`
+                            : `₹${c.discountAmount}`}
                         </td>
 
                         {/* Minimum Order */}
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {c.minOrderAmount}
+                          ₹{c.minOrderAmount}
                         </td>
 
                         {/* Maximum Discount */}
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {c.maximumDiscountAmount}
+                          ₹{c.maximumDiscountAmount}
                         </td>
 
                         {/* Expiry Date */}
@@ -267,7 +330,7 @@ const AdminCouponsPage: React.FC = () => {
                             {!isExpired && (
                               <Link
                                 to={`/admin/coupons/edit/${c.id}`}
-                                className="px-3 py-1.5 bg-blue-500 text-white rounded"
+                                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded"
                               >
                                 Edit
                               </Link>
@@ -289,6 +352,92 @@ const AdminCouponsPage: React.FC = () => {
             </table>
           )}
         </div>
+
+        {/* Pagination */}
+        {!error && (
+          <div className="flex flex-col lg:flex-row items-center
+                          justify-between gap-4 mt-6">
+
+            {/* Showing Records */}
+            <p className="text-sm text-gray-400">
+              {loading
+                ? "Loading records..."
+                : `Showing ${firstRecord} - ${lastRecord} of ${totalElements} coupons`}
+            </p>
+
+            {/* Rows Per Page */}
+            <div className="flex items-center gap-3">
+
+              <label
+                htmlFor="coupon-page-size"
+                className="text-sm text-gray-400 whitespace-nowrap"
+              >
+                Rows per page:
+              </label>
+
+              <select
+                id="coupon-page-size"
+                className="input w-20"
+                value={pageSize}
+                disabled={paginationDisabled}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(0);
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+
+            </div>
+
+            {/* Previous and Next Buttons */}
+            <div className="flex items-center gap-4">
+
+              <button
+                className="btn btn-outline
+                           disabled:opacity-40
+                           disabled:cursor-not-allowed"
+                disabled={
+                  page === 0 ||
+                  paginationDisabled
+                }
+                onClick={() =>
+                  setPage((previous) =>
+                    Math.max(0, previous - 1)
+                  )
+                }
+              >
+                Previous
+              </button>
+
+              <span className="text-sm whitespace-nowrap">
+                Page {page + 1} of {Math.max(totalPages, 1)}
+              </span>
+
+              <button
+                className="btn btn-outline
+                           disabled:opacity-40
+                           disabled:cursor-not-allowed"
+                disabled={
+                  page + 1 >= totalPages ||
+                  paginationDisabled
+                }
+                onClick={() =>
+                  setPage((previous) =>
+                    Math.min(previous + 1, totalPages - 1)
+                  )
+                }
+              >
+                Next
+              </button>
+
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
