@@ -75,7 +75,10 @@ export interface Cart {
   items: CartItem[];
   grandTotal: number;
   totalItems: number;
-  coupon?: Coupon | null; 
+  coupon?: Coupon | null;
+  appliedCouponCode?: string | null;
+  discountAmount?: number;
+  finalAmount?: number; 
 }
 
 export interface Address {

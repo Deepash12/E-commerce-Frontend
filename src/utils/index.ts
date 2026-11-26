@@ -12,6 +12,16 @@ export function formatPrice(amount: number): string {
   }).format(amount);
 }
 
+export function formatPriceWithDecimals(amount: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+
 export function formatDate(dateStr?: string): string {
   if (!dateStr) return '';
   return new Intl.DateTimeFormat('en-IN', {
