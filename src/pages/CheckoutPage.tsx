@@ -5,7 +5,7 @@ import { addressAPI, orderAPI, couponAPI } from "../api/service";
 import { useCart } from "../context/CartContext";
 import { LoadingPage } from "../components/ui";
 import AddressForm from "../components/address/AddressForm";
-import { formatPrice, cn } from "../utils";
+import { formatPrice, formatPriceWithDecimals, cn } from "../utils";
 import type { Address } from "../types";
 import toast from "react-hot-toast";
 
@@ -22,20 +22,15 @@ const CheckoutPage: React.FC = () => {
   const [removingCoupon, setRemovingCoupon] = useState(false);
   const [couponInput, setCouponInput] = useState("");
 
-  // Local coupon state — apply API response se set hota hai
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
 
-  // Flag: kya user ne is session mein coupon apply kiya?
-  // False = page reload/back case, True = user ne abhi apply kiya
   const couponAppliedThisSession = useRef(false);
 
-  /* ── FETCH FRESH CART on page load ── */
   useEffect(() => {
     fetchCart();
   }, []);
 
-  /* ── FETCH ADDRESSES ── */
   const fetchAddresses = async () => {
     try {
       const res = await addressAPI.view();
@@ -52,22 +47,16 @@ const CheckoutPage: React.FC = () => {
 
   useEffect(() => { fetchAddresses(); }, []);
 
-  // ✅ Cart sync useEffect:
-  // - Page reload / back aane pe: cart.appliedCouponCode se state set karo
-  // - Apply karne ke baad fetchCart: couponAppliedThisSession=true toh override MAT karo
+
   useEffect(() => {
     if (!cart) return;
 
     if (cart.appliedCouponCode) {
-      // Agar user ne abhi apply kiya hai toh local state already sahi hai — override mat karo
       if (!couponAppliedThisSession.current) {
-        // Page reload / back navigation case
-        // Backend se discountAmount aa raha hai (after our backend fix)
         setAppliedCouponCode(cart.appliedCouponCode);
         setAppliedDiscount(cart.discountAmount ?? 0);
       }
     } else {
-      // Coupon nahi hai — remove ke baad ya fresh cart
       if (!couponAppliedThisSession.current) {
         setAppliedCouponCode(null);
         setAppliedDiscount(0);
@@ -75,14 +64,12 @@ const CheckoutPage: React.FC = () => {
     }
   }, [cart?.appliedCouponCode, cart?.discountAmount]);
 
-  /* ── APPLY COUPON ── */
   const handleApplyCoupon = async () => {
     if (!couponInput.trim()) { toast.error("Enter coupon code"); return; }
     setApplyingCoupon(true);
     try {
       const res = await couponAPI.apply(couponInput.trim());
 
-      // Apply API se directly discount lo — yeh 100% reliable hai
       const discountAmount =
         res.data?.discountAmount ??
         res.data?.data?.discountAmount ??
@@ -90,16 +77,18 @@ const CheckoutPage: React.FC = () => {
 
       const savedCode = couponInput.trim();
 
-      // ✅ Flag set karo — ab useEffect cart sync se override nahi hoga
       couponAppliedThisSession.current = true;
 
       setAppliedDiscount(discountAmount);
       setAppliedCouponCode(savedCode);
       setCouponInput("");
 
-      toast.success(`Coupon applied! You saved ₹${discountAmount}`);
+      toast.success(
+        `Coupon applied! You saved ${formatPriceWithDecimals(
+          Number(discountAmount)
+        )}`
+      );
 
-      // Background mein cart refresh karo
       fetchCart();
 
     } catch (err: any) {
@@ -110,13 +99,11 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
-  /* ── REMOVE COUPON ── */
   const handleRemoveCoupon = async () => {
     setRemovingCoupon(true);
     try {
       await couponAPI.remove();
 
-      // ✅ Flag reset karo — ab cart sync se state update ho sakta hai
       couponAppliedThisSession.current = false;
 
       setAppliedDiscount(0);
@@ -132,20 +119,12 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
-  /* ── PLACE ORDER ── */
-  // const handlePlaceOrder = async () => {
-  //   if (!selectedId) { toast.error("Please select a delivery address"); return; }
-
-  //   setPlacing(true);
-
   const handlePlaceOrder = async () => {
-    // Prevent order placement when cart is empty
     if (!cart || !cart.items || cart.items.length === 0) {
       toast.error("Your cart is empty. Please add products first.");
       return;
     }
 
-    // Prevent zero or negative amount orders
     const payableAmount =
       (cart.grandTotal ?? 0) - appliedDiscount;
 
@@ -189,10 +168,22 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
-  const discount = appliedDiscount;
+  const discount = Number(appliedDiscount ?? 0);
   const couponCode = appliedCouponCode;
-  const grandTotal = cart?.grandTotal ?? 0;
+  const grandTotal = Number(cart?.grandTotal ?? 0);
+
   const finalTotal = grandTotal - discount;
+
+  const unroundedPayable = Math.max(
+    0,
+    Math.round(finalTotal * 100) / 100
+  );
+
+  const roundedPayable = Math.round(unroundedPayable);
+
+  const roundOffAdjustment = Number(
+    (roundedPayable - unroundedPayable).toFixed(2)
+  );
 
   if (loading) return <LoadingPage />;
 
@@ -262,11 +253,11 @@ const CheckoutPage: React.FC = () => {
             )}
           </div>
 
-          {/* ── ORDER SUMMARY ── */}
+
           <div className="card border-obsidian-700 p-6 sticky top-24">
             <h3 className="section-title mb-5">Order Summary</h3>
 
-            {/* COUPON SECTION */}
+
             {couponCode ? (
               <div className="flex items-center justify-between bg-green-400/10 border border-green-400/30 rounded px-3 py-2 mb-5">
                 <div>
@@ -274,7 +265,7 @@ const CheckoutPage: React.FC = () => {
                     🏷️ {couponCode} applied
                   </p>
                   <p className="text-green-300 text-xs">
-                    You save {formatPrice(discount)}
+                    You save {formatPriceWithDecimals(discount)}
                   </p>
                 </div>
                 <button
@@ -305,59 +296,78 @@ const CheckoutPage: React.FC = () => {
               </div>
             )}
 
-            {/* ITEMS */}
+
             <div className="space-y-2.5 mb-5">
               {(cart?.items ?? []).map((item) => (
                 <div key={item.productId} className="flex justify-between text-sm">
                   <span>{item.productName} x {item.quantity}</span>
-                  <span>{formatPrice(item.finalPrice * item.quantity)}</span>
+                  <span>
+                    {formatPriceWithDecimals(
+                      item.finalPrice * item.quantity
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
 
             <div className="h-px bg-obsidian-800 mb-4" />
 
+
             {/* Subtotal */}
             <div className="flex justify-between text-sm text-obsidian-400 mb-2">
               <span>Subtotal</span>
-              <span>{formatPrice(grandTotal)}</span>
+
+              <span>
+                {formatPriceWithDecimals(grandTotal)}
+              </span>
             </div>
 
             {/* Discount row */}
             {discount > 0 && (
               <div className="flex justify-between text-green-400 mb-2 text-sm font-medium">
                 <span>Discount ({couponCode})</span>
-                <span>- {formatPrice(discount)}</span>
+
+                <span>
+                  -{formatPriceWithDecimals(discount)}
+                </span>
+              </div>
+            )}
+
+            {/* Round-off adjustment */}
+            {roundOffAdjustment !== 0 && (
+              <div className="flex justify-between text-sm text-obsidian-400 mb-2">
+                <span>Round-off Adjustment</span>
+
+                <span>
+                  {roundOffAdjustment > 0 ? "+" : "-"}
+                  {formatPriceWithDecimals(
+                    Math.abs(roundOffAdjustment)
+                  )}
+                </span>
               </div>
             )}
 
             <div className="h-px bg-obsidian-800 mb-4" />
 
-            {/* Final Total */}
+            {/* Final payable */}
             <div className="flex justify-between mb-1">
-              <span className="font-medium">Total</span>
+              <span className="font-medium">
+                Total Payable
+              </span>
+
               <span className="text-gold-400 text-2xl">
-                {formatPrice(finalTotal)}
+                {formatPrice(roundedPayable)}
               </span>
             </div>
 
             {/* Savings line */}
             {discount > 0 ? (
               <p className="text-right text-green-400 text-xs mb-5">
-                🎉 You save {formatPrice(discount)} with {couponCode}
+                🎉 You save {formatPriceWithDecimals(discount)} with {couponCode}
               </p>
             ) : (
               <div className="mb-5" />
             )}
-
-            {/* <button
-              className="btn btn-primary w-full"
-              onClick={handlePlaceOrder}
-              disabled={placing || !selectedId}
-            >
-              {placing ? "Placing Order..." : "Place Order"}
-            </button> */}
-
 
             <button
               className="btn btn-primary w-full"
