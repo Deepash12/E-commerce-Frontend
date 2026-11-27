@@ -62,14 +62,28 @@ export interface PageResponse<T> {
   lastPage: boolean;
 }
 
-export interface CartItem{
-  productImageUrl: string| null;
+export type CartAvailabilityStatus =
+  | 'AVAILABLE'
+  | 'OUT_OF_STOCK'
+  | 'INSUFFICIENT_STOCK'
+  | 'INACTIVE'
+  | 'INVALID_QUANTITY';
+
+export interface CartItem {
+  productImageUrl: string | null;
   productId: number;
   productName: string;
   finalPrice: number;
   quantity: number;
   subtotal?: number;
+  totalPrice?: number;
+  isActiveProduct: boolean;
+  stockQuantity: number;
+  isAvailable: boolean;
+  availabilityStatus: CartAvailabilityStatus;
+  availabilityMessage?: string | null;
 }
+
 
 export interface Cart {
   items: CartItem[];
@@ -78,7 +92,10 @@ export interface Cart {
   coupon?: Coupon | null;
   appliedCouponCode?: string | null;
   discountAmount?: number;
-  finalAmount?: number; 
+  finalAmount?: number;
+  hasUnavailableItems: boolean;
+  unavailableItemsCount: number;
+  canCheckout: boolean;
 }
 
 export interface Address {

@@ -7,17 +7,10 @@ import React, {
   useCallback,
 } from "react";
 import { cartAPI } from "../api/service";
-import type { CartItem } from "../types";
+import type { Cart } from "../types";
 import { useAuth } from "./AuthContext";
 
-interface Cart {
-  items: CartItem[];
-  grandTotal: number;
-  totalItems: number;
-  appliedCouponCode?: string | null;
-  discountAmount?: number;
-  finalAmount?: number;
-}
+
 
 interface CartContextType {
   cart: Cart;
@@ -37,26 +30,14 @@ const defaultCart: Cart = {
   appliedCouponCode: null,
   discountAmount: 0,
   finalAmount: 0,
+  hasUnavailableItems: false,
+  unavailableItemsCount: 0,
+  canCheckout: false,
 };
 
 const CartContext = createContext<CartContextType | null>(null);
 
-const recalculateCart = (items: CartItem[]): Cart => {
-  const grandTotal = items.reduce(
-    (total, item) => total + item.finalPrice * item.quantity,
-    0
-  );
 
-  const totalItems = items.reduce((total, item) => total + item.quantity, 0);
-
-  return {
-    ...defaultCart,
-    items,
-    grandTotal,
-    totalItems,
-    finalAmount: grandTotal,
-  };
-};
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { user, isAdmin } = useAuth();
@@ -67,34 +48,50 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     {}
   );
 
-  const fetchCart = useCallback(
-    async (showLoader = true) => {
-      if (!user || isAdmin) {
-        setCart(defaultCart);
+  
+const fetchCart = useCallback(
+  async (showLoader = true) => {
+    if (!user || isAdmin) {
+      setCart(defaultCart);
+      setCartLoading(false);
+      return;
+    }
+
+    try {
+      if (showLoader) {
+        setCartLoading(true);
+      }
+
+      const res = await cartAPI.view();
+      const responseData = res.data?.data ?? res.data;
+
+      setCart({
+        ...defaultCart,
+        ...responseData,
+        items: responseData.items ?? [],
+        hasUnavailableItems:
+          responseData.hasUnavailableItems === true,
+        unavailableItemsCount:
+          responseData.unavailableItemsCount ?? 0,
+        canCheckout:
+          responseData.canCheckout === true,
+      });
+    } catch (error) {
+      console.error("Cart fetch failed:", error);
+
+      setCart((prev) => ({
+        ...prev,
+        canCheckout: false,
+      }));
+    } finally {
+      if (showLoader) {
         setCartLoading(false);
-        return;
       }
+    }
+  },
+  [user, isAdmin]
+);
 
-      try {
-        if (showLoader) {
-          setCartLoading(true);
-        }
-
-        const res = await cartAPI.view();
-        const responseData = res.data?.data ?? res.data;
-
-        setCart(responseData as Cart);
-      } catch (error) {
-        console.error("Cart fetch failed:", error);
-        setCart(defaultCart);
-      } finally {
-        if (showLoader) {
-          setCartLoading(false);
-        }
-      }
-    },
-    [user, isAdmin]
-  );
 
   const clearCart = useCallback(() => {
     setCart(defaultCart);
@@ -129,74 +126,58 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateQuantity = async (productId: number, quantity: number) => {
-    if (!user || isAdmin) return;
+  
+const updateQuantity = async (
+  productId: number,
+  quantity: number
+) => {
+  if (!user || isAdmin) return;
 
-    const previousCart = cart;
+  setUpdatingItems((prev) => ({
+    ...prev,
+    [productId]: true,
+  }));
 
-    const updatedItems = cart.items
-      .map((item) =>
-        item.productId === productId
-          ? {
-              ...item,
-              quantity,
-            }
-          : item
-      )
-      .filter((item) => item.quantity > 0);
-
-    setCart(recalculateCart(updatedItems));
-
+  try {
+    await cartAPI.update(productId, quantity);
+    await fetchCart(false);
+  } catch (error) {
+    console.error("Quantity update failed:", error);
+    await fetchCart(false);
+    throw error;
+  } finally {
     setUpdatingItems((prev) => ({
       ...prev,
-      [productId]: true,
+      [productId]: false,
     }));
+  }
+};
 
-    try {
-      await cartAPI.update(productId, quantity);
-      await fetchCart(false);
-    } catch (error) {
-      console.error("Quantity update failed:", error);
-      setCart(previousCart);
-      throw error;
-    } finally {
-      setUpdatingItems((prev) => ({
-        ...prev,
-        [productId]: false,
-      }));
-    }
-  };
 
-  const removeItem = async (productId: number) => {
-    if (!user || isAdmin) return;
+  
+const removeItem = async (productId: number) => {
+  if (!user || isAdmin) return;
 
-    const previousCart = cart;
+  setUpdatingItems((prev) => ({
+    ...prev,
+    [productId]: true,
+  }));
 
-    const updatedItems = cart.items.filter(
-      (item) => item.productId !== productId
-    );
-
-    setCart(recalculateCart(updatedItems));
-
+  try {
+    await cartAPI.remove(productId);
+    await fetchCart(false);
+  } catch (error) {
+    console.error("Remove item failed:", error);
+    await fetchCart(false);
+    throw error;
+  } finally {
     setUpdatingItems((prev) => ({
       ...prev,
-      [productId]: true,
+      [productId]: false,
     }));
+  }
+};
 
-    try {
-      await cartAPI.remove(productId);
-      await fetchCart(false);
-    } catch (error) {
-      console.error("Remove item failed:", error);
-      setCart(previousCart);
-      throw error;
-    } finally {
-      setUpdatingItems((prev) => ({
-        ...prev,
-        [productId]: false,
-      }));
-    }
-  };
 
   return (
     <CartContext.Provider
